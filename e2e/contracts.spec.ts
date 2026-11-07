@@ -3,6 +3,26 @@ import {expect,test,type Browser,type Page} from "@playwright/test"
 const stamp=Math.random().toString(36).slice(2,10)
 const password="E2eTestPass!2026"
 const origin=new URL(process.env.PLAYWRIGHT_BASE_URL||"http://127.0.0.1:3000").origin
+
+async function submitSignup(page: Page) {
+  for(let attempt=0;attempt<3;attempt++){
+    const response=page.waitForResponse(r=>r.url().includes("/api/auth/sign-up/email")&&r.request().method()==="POST")
+    await submitSignup(page)
+    const result=await response
+    if(result.status()===429){
+      // Respect Better Auth's per-IP signup rate limit between CI browser journeys.
+      await page.waitForTimeout(11500)
+      continue
+    }
+    if(!result.ok()){
+      const body=await result.json().catch(()=>({}))
+      throw new Error("Signup failed ("+result.status()+"): "+(body.code||body.message||body.error||"Unknown error"))
+    }
+    return
+  }
+  throw new Error("Signup remains rate-limited after retry")
+}
+
 async function makeUser(browser:Browser,role:"DOM"|"SUB",handle:string){
   const context=await browser.newContext()
   const page=await context.newPage()

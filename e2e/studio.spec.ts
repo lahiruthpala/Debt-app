@@ -5,6 +5,26 @@ const stamp = id()
 const password = "E2eTestPass!2026"
 const apiOrigin = new URL(process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000").origin
 
+async function submitSignup(page: Page) {
+  for(let attempt=0;attempt<3;attempt++){
+    const response=page.waitForResponse(r=>r.url().includes("/api/auth/sign-up/email")&&r.request().method()==="POST")
+    await page.getByRole("button",{name:/Create my account/}).click()
+    const result=await response
+    if(result.status()===429){
+      // Respect Better Auth's per-IP signup rate limit between CI browser journeys.
+      await page.waitForTimeout(11500)
+      continue
+    }
+    if(!result.ok()){
+      const body=await result.json().catch(()=>({}))
+      throw new Error("Signup failed ("+result.status()+"): "+(body.code||body.message||body.error||"Unknown error"))
+    }
+    return
+  }
+  throw new Error("Signup remains rate-limited after retry")
+}
+
+
 async function signUp(browser: Browser, role: "DOM" | "SUB", handle: string) {
   const context = await browser.newContext()
   const page = await context.newPage()
@@ -16,7 +36,7 @@ async function signUp(browser: Browser, role: "DOM" | "SUB", handle: string) {
   await page.getByLabel("EMAIL").fill(email)
   await page.getByLabel("PASSWORD").fill(password)
   await page.getByRole("checkbox").check()
-  await page.getByRole("button", { name: /Create my account/ }).click()
+  await submitSignup(page)
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 25_000 })
   await expect(page.getByRole("heading", { name: "Choose how you participate." })).toBeVisible()
   await expect(page.getByLabel("PUBLIC HANDLE")).toHaveValue(handle)
@@ -92,7 +112,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await domPage.getByRole("button", { name: /Create a game/ }).click()
     await domPage.getByLabel("GAME TITLE").fill(creativeTitle)
     await domPage.getByLabel("SHORT DESCRIPTION").fill("A collaborative mystery with a different ending every time.")
-    await domPage.getByLabel("CATEGORY",{exact:true}).fill("Mystery")
+    await domPage.getByLabel("CATEGORY").fill("Mystery")
     await domPage.getByLabel("RULES AND HOW TO PLAY").fill(
       "Each partner adds one scene-setting clue or a possible solution. Build on each other, never write a move for the other player. Either partner can finish the game."
     )
