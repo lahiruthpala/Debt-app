@@ -86,6 +86,63 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await expect(subPage.getByRole("status")).toContainText("Scene activated")
     await expect(subPage.locator(".big-balance")).toHaveText("LKR 250,000")
 
+    // Publish an original game and play it as both members of the approved scene.
+    const creativeTitle = "Story_" + stamp
+    await visit(domPage, "Game room")
+    await domPage.getByRole("button", { name: /Create a game/ }).click()
+    await domPage.getByLabel("GAME TITLE").fill(creativeTitle)
+    await domPage.getByLabel("SHORT DESCRIPTION").fill("A collaborative mystery with a different ending every time.")
+    await domPage.getByLabel("CATEGORY").fill("Mystery")
+    await domPage.getByLabel("RULES AND HOW TO PLAY").fill(
+      "Each partner adds one scene-setting clue or a possible solution. Build on each other, never write a move for the other player. Either partner can finish the game."
+    )
+    await domPage.getByLabel("OPENING PROMPT (OPTIONAL)").fill("A locked letter appears on the doorstep.")
+    await domPage.getByRole("button", { name: /Publish to Discover/ }).click()
+    await expect(domPage.getByRole("status")).toContainText("published in Discover")
+    const listResponse = await domPage.request.get("/api/games?view=library")
+    expect(listResponse.status()).toBe(200)
+    const game = (await listResponse.json()).games.find((g: {title:string}) => g.title === creativeTitle)
+    expect(game).toBeTruthy()
+    const forbiddenUnpublish = await subPage.request.post("/api/games", {
+      headers: { origin: apiOrigin },
+      data: { action: "publish", gameId: game.id, publish: false },
+    })
+    expect(forbiddenUnpublish.status()).toBe(404)
+
+    const before = (await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    await visit(subPage, "Game room")
+    await subPage.getByLabel("Search community games").fill(creativeTitle)
+    await subPage.getByRole("button", { name: "Explore library" }).click()
+    await subPage.getByRole("button", { name: "View game " + creativeTitle }).click()
+    await expect(subPage.getByText("A locked letter appears on the doorstep.")).toBeVisible()
+    await subPage.getByRole("button", { name: /Start with your partner/ }).click()
+    await expect(subPage.getByRole("status")).toContainText("Game started")
+    await subPage.getByLabel("Your game move").fill("I find a silver key.")
+    await subPage.getByRole("button", { name: /Post move/ }).click()
+    await expect(subPage.getByRole("status")).toContainText("Your move was added")
+
+    await domPage.getByRole("button", { name: /Shared sessions/ }).click()
+    await domPage.getByRole("button", { name: /Refresh game list/ }).click()
+    await domPage.locator(".session-list-item").filter({hasText:creativeTitle}).click()
+    await expect(domPage.getByText("I find a silver key.")).toBeVisible()
+    await domPage.getByLabel("Your game move").fill("The key opens a hidden journal.")
+    await domPage.getByRole("button", { name: /Post move/ }).click()
+    await expect(domPage.getByRole("status")).toContainText("Your move was added")
+    await subPage.getByRole("button", { name: /Refresh turns/ }).click()
+    await expect(subPage.getByText("The key opens a hidden journal.")).toBeVisible()
+    subPage.once("dialog", dialog => dialog.accept())
+    await subPage.getByRole("button", { name: /Finish game/ }).click()
+    await expect(subPage.getByRole("status")).toContainText("Game finished")
+    await expect(subPage.getByLabel("Your game move")).toHaveCount(0)
+    const after = (await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    expect([after.principal,after.interest,after.penalties]).toEqual([before.principal,before.interest,before.penalties])
+    const toastVisibleHere = await subPage.getByRole("status").evaluate(element => {
+      const rect=element.getBoundingClientRect()
+      return rect.top>=0 && rect.bottom<=window.innerHeight
+    })
+    expect(toastVisibleHere).toBe(true)
+    await visit(subPage, "Overview")
+
     // All simulated credits are recorded, never real payments.
     await subPage.getByRole("button", { name: "Apply credit" }).click()
     await expect(subPage.locator(".big-balance")).toHaveText("LKR 235,000")
@@ -182,6 +239,8 @@ test("public routes load; unauthenticated studio operations are denied", async (
     headers: { origin: apiOrigin }, data: { action: "profile" },
   })
   expect(blocked.status()).toBe(401)
+  expect((await request.get("/api/games?view=library")).status()).toBe(401)
+  expect((await request.post("/api/games", {data: {action:"create"}})).status()).toBe(403)
 
   // Authentication must reject cross-origin signup requests (CSRF).
   const crossSiteSignup = await request.post("/api/auth/sign-up/email", {
