@@ -59,3 +59,45 @@ jobs:
             test-results/
           retention-days: 7
           if-no-files-found: ignore
+
+  # One-time production smoke run when explicitly tagged by a maintainer.
+  # Creates two clearly labelled e2e accounts in production to exercise all flows.
+  production-e2e:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[prod-e2e]')
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PLAYWRIGHT_BASE_URL: https://debt-app-ivory.vercel.app
+      PLAYWRIGHT_SKIP_WEBSERVER: '1'
+      CI: "true"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Wait for live backend to become ready
+        run: |
+          for attempt in $(seq 1 30); do
+            body="$(curl --max-time 10 -fsS "$PLAYWRIGHT_BASE_URL/api/health")" && \
+              [[ "$body" == *'"status":"ready"'* ]] && exit 0
+            sleep 8
+          done
+          echo "Production backend did not become ready" >&2
+          exit 1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Full browser journey against production
+        run: npm run test:e2e
+      - name: Upload production Playwright report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-production-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
