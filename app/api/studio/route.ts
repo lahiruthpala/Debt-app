@@ -26,7 +26,13 @@ function originGuard(req: Request) {
   const secFetchSite = req.headers.get("sec-fetch-site")
   if (origin) {
     try {
-      if (new URL(origin).origin === new URL(req.url).origin) return
+      const url = new URL(req.url)
+      const requestOrigin = new URL(origin).origin
+      // Next.js may expose its internal hostname in req.url behind a proxy.
+      // The Host header retains the requested public hostname.
+      const host = req.headers.get("host")
+      const allowed = [url.origin, ...(host ? [url.protocol + "//" + host] : [])]
+      if (allowed.includes(requestOrigin)) return
     } catch {}
   } else if (secFetchSite === "same-origin") {
     return

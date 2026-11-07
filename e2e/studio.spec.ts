@@ -19,6 +19,7 @@ async function signUp(browser: Browser, role: "DOM" | "SUB", handle: string) {
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 25_000 })
   await expect(page.getByRole("heading", { name: "Choose how you participate." })).toBeVisible()
   await expect(page.getByLabel("PUBLIC HANDLE")).toHaveValue(handle)
+  await page.getByRole("checkbox", { name: /I confirm that I am 18/ }).check()
   await page.getByRole("button", { name: /Complete setup/ }).click()
   await expect(page.getByRole("heading", { name: "Your command center" })).toBeVisible()
   await expect(page.getByText("No scenes yet.")).toBeVisible()
@@ -69,7 +70,6 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await expect(domPage.getByRole("status")).toContainText("Terms proposed")
 
     await subPage.reload()
-    await expect(subPage.getByText("FANTASY BALANCE", { exact: false }).first()).toBeVisible().catch(() => {})
     await expect(subPage.getByRole("button", { name: "Approve & begin scene" })).toBeVisible()
     await subPage.getByRole("button", { name: "Approve & begin scene" }).click()
     await expect(subPage.getByRole("status")).toContainText("Scene activated")
