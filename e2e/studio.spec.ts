@@ -3,6 +3,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test"
 const id = () => Math.random().toString(36).slice(2, 10)
 const stamp = id()
 const password = "E2eTestPass!2026"
+const apiOrigin = new URL(process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000").origin
 
 async function signUp(browser: Browser, role: "DOM" | "SUB", handle: string) {
   const context = await browser.newContext()
@@ -62,7 +63,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     const connection = (await pending.json()).connections[0]
     expect(connection.state).toBe("pending")
     const senderAccept = await domPage.request.post("/api/studio", {
-      headers: { origin: "http://127.0.0.1:3000" },
+      headers: { origin: apiOrigin },
       data: { action: "connection", id: connection.id, decision: "accept" },
     })
     expect(senderAccept.status()).toBe(409)
@@ -104,12 +105,12 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
 
     // The sub cannot propose new terms, and the Dom cannot submit simulated payments.
     const illegalProposal = await subPage.request.post("/api/studio", {
-      headers: { origin: "http://127.0.0.1:3000" },
+      headers: { origin: apiOrigin },
       data: { action: "propose", connectionId: connection.id, principal: 100, monthlyRate: 1, weeklyTarget: 10, lateFee: 1 },
     })
     expect(illegalProposal.status()).toBe(403)
     const illegalPayment = await domPage.request.post("/api/studio", {
-      headers: { origin: "http://127.0.0.1:3000" },
+      headers: { origin: apiOrigin },
       data: { action: "scene", sceneId, operation: "payment", amount: 1000 },
     })
     expect(illegalPayment.status()).toBe(403)
@@ -147,7 +148,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await subPage.getByRole("button", { name: /End scene permanently/ }).click()
     await expect(subPage.getByRole("status")).toContainText("Scene ended")
     const afterEnd = await subPage.request.post("/api/studio", {
-      headers: { origin: "http://127.0.0.1:3000" },
+      headers: { origin: apiOrigin },
       data: { action: "scene", sceneId, operation: "payment", amount: 100 },
     })
     expect(afterEnd.status()).toBe(409)
@@ -178,7 +179,14 @@ test("public routes load; unauthenticated studio operations are denied", async (
   expect((await request.get("/api/studio?view=connections")).status()).toBe(401)
   expect((await request.post("/api/studio", { data: { action: "profile" } })).status()).toBe(403)
   const blocked = await request.post("/api/studio", {
-    headers: { origin: "http://127.0.0.1:3000" }, data: { action: "profile" },
+    headers: { origin: apiOrigin }, data: { action: "profile" },
   })
   expect(blocked.status()).toBe(401)
+
+  // Authentication must reject cross-origin signup requests (CSRF).
+  const crossSiteSignup = await request.post("/api/auth/sign-up/email", {
+    headers: { origin: "https://untrusted-attacker.example" },
+    data: { email: `e2e-untrusted-${stamp}@example.invalid`, name: "untrusted", password },
+  })
+  expect(crossSiteSignup.status()).toBe(403)
 })

@@ -8,5 +8,5 @@ export function getTrustedAuthOrigins(baseURL?: string, vercelHost?: string): st
     baseURL,
     vercelHost ? `https://${vercelHost}` : undefined,
   ].filter((value): value is string => Boolean(value))
-  return [...new Set(values.map(value => new URL(value).origin))]
+  return Array.from(new Set(values.map(value => new URL(value).origin)))
 }
