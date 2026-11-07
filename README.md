@@ -11,6 +11,9 @@
 - Either party can pause or permanently end a scene at any time; only the sub may resume
 - Persistent audit trail, penalties → interest → principal payment allocation
 - Monthly compounded interest and weekly late fees are **manual** actions with cooldowns
+- Interactive Contract Workshop: create configurable debt contracts that combine Dice Duel, Fortune Wheel, Check-ins and verified Tasks, with editable game probabilities/outcomes, amounts and cooldowns
+- Publish or keep contract templates private; discover and customize community templates, then propose one to an accepted connection. The Sub must explicitly approve the terms before gameplay and may always pause/end the scene
+- Game effects are calculated and audited server-side (including limits), and every contract snapshots its terms and modules so template edits cannot retroactively alter agreements
 - Community Game Studio: write original rules and opening prompts, save drafts, publish to Discover, edit/unpublish your games, and play collaborative turn-based sessions inside approved scenes
 - Game sessions preserve the original rules, support both participants' free-form turns, and can be finished by either partner. Game moves never change the fictional ledger
 - Fixed-position action toasts show immediate progress, success and errors even when scrolled to the bottom of the dashboard
@@ -84,3 +87,10 @@ is unavailable, check this endpoint first. The CI database is **not** the produc
 ## Background
 
 The original project terms (fictional LKR 250,000 initial principal, 12% monthly interest, LKR 15,000 weekly target and a LKR 5,000 late fee) serve as **editable example defaults**, not obligations. Personal names and locations from the project background are intentionally excluded from the public application.
+
+## Interactive debt contracts (first release)
+Go to **Game room → Contract builder**, configure fictional starting terms, then add one or more game modules (up to eight). Dice Duels roll against a server-generated rival and credit or charge the point difference. Fortune Wheels select uniformly from user-defined outcomes. Check-ins earn agreed fantasy credits. Tasks require Sub submission and Dom approval before the credit is applied.
+
+Templates can be published, discovered and adapted by anyone with an adult profile. Only Dom accounts propose a configured contract to an active connection; the Sub must explicitly approve it. Paused and ended scenes reject module actions. All amounts are imaginary and no real money moves.
+
+Module cooldowns use server time; zero cooldown is available for dice/wheels but a 40-action-per-day safety cap still applies. Charges are capped, all outcomes are server-generated, and actions are logged. No arbitrary user code, external payments, background punishments, photo verification or public visitor control is implemented. This is not a legal debt contract or financial service.

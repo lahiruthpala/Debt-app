@@ -92,7 +92,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await domPage.getByRole("button", { name: /Create a game/ }).click()
     await domPage.getByLabel("GAME TITLE").fill(creativeTitle)
     await domPage.getByLabel("SHORT DESCRIPTION").fill("A collaborative mystery with a different ending every time.")
-    await domPage.getByLabel("CATEGORY").fill("Mystery")
+    await domPage.getByLabel("CATEGORY",{exact:true}).fill("Mystery")
     await domPage.getByLabel("RULES AND HOW TO PLAY").fill(
       "Each partner adds one scene-setting clue or a possible solution. Build on each other, never write a move for the other player. Either partner can finish the game."
     )
