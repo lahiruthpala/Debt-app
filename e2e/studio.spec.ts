@@ -38,6 +38,16 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
   const domPage = dom.page
   const subPage = sub.page
   try {
+    // A returning user must be able to sign out and sign back in.
+    await domPage.getByRole("button", { name: /Sign out/ }).click()
+    await expect(domPage).toHaveURL(/\\/$/)
+    await domPage.goto("/login")
+    await domPage.getByLabel("EMAIL").fill(dom.email)
+    await domPage.getByLabel("PASSWORD").fill(password)
+    await domPage.locator("form").getByRole("button", { name: "Sign in" }).click()
+    await expect(domPage).toHaveURL(/\\/dashboard/, { timeout: 25_000 })
+    await expect(domPage.locator(".user-pill")).toContainText("@" + domHandle)
+
     await visit(domPage, "Discover")
     await domPage.getByPlaceholder(/Search sub handles or bios/).fill(subHandle)
     await domPage.getByRole("button", { name: "Search", exact: true }).click()

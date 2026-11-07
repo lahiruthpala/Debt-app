@@ -8,3 +8,5 @@ out/
 .vercel/
 *.tsbuildinfo
 .DS_Store
+playwright-report/
+test-results/

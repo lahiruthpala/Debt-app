@@ -48,7 +48,22 @@ The migration adds Better Auth's standard email/password tables and app-specific
 npm test
 npm run typecheck
 npm run build
+npm run test:e2e
 ```
+
+Playwright runs in Chromium against a real Next.js server. On every GitHub push, the CI job
+starts disposable PostgreSQL 16, runs schema migrations and a production build, and
+executes browser tests for both roles, sign-up/sign-in, discovery/invitations, consent,
+ledger updates, challenges, Debt Dice, pause/resume, termination and blocking.
+Failures upload screenshots, Playwright traces and the HTML report to Actions artifacts.
+
+Locally, set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=http://127.0.0.1:3000`,
+run `npm run build`, install Chromium with `npx playwright install chromium` and run
+`npm run test:e2e`. Playwright starts `npm run start` automatically.
+
+The health check at `GET /api/health` returns `{"status":"ready"}` only with
+the required server configuration and initialized tables. If Vercel signup
+is unavailable, check this endpoint first. The CI database is **not** the production database.
 
 ## Data and safety
 
