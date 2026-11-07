@@ -164,3 +164,65 @@ CREATE TABLE IF NOT EXISTS community_game_reports (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (game_id, reporter_id)
 );
+
+-- Configurable fantasy debt contracts. Templates are publicly discoverable only
+-- when explicitly published; immutable snapshots are attached to scenes.
+CREATE TABLE IF NOT EXISTS debt_contract_templates (
+  id uuid PRIMARY KEY,
+  author_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  title varchar(80) NOT NULL,
+  description varchar(320) NOT NULL,
+  category varchar(30) NOT NULL,
+  terms jsonb NOT NULL,
+  modules jsonb NOT NULL,
+  published boolean NOT NULL DEFAULT false,
+  published_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS debt_templates_discover_idx
+  ON debt_contract_templates(published,published_at DESC);
+CREATE INDEX IF NOT EXISTS debt_templates_author_idx
+  ON debt_contract_templates(author_id,updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS scene_contracts (
+  scene_id uuid PRIMARY KEY REFERENCES scenes(id) ON DELETE CASCADE,
+  template_id uuid REFERENCES debt_contract_templates(id) ON DELETE SET NULL,
+  author_id text NOT NULL REFERENCES profiles(id),
+  title_snapshot varchar(80) NOT NULL,
+  description_snapshot varchar(320) NOT NULL,
+  modules_snapshot jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS contract_action_log (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scene_contracts(scene_id) ON DELETE CASCADE,
+  module_id uuid NOT NULL,
+  actor_id text NOT NULL REFERENCES profiles(id),
+  action varchar(24) NOT NULL,
+  delta integer NOT NULL DEFAULT 0,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS contract_actions_scene_idx
+  ON contract_action_log(scene_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS contract_actions_cooldown_idx
+  ON contract_action_log(scene_id,module_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS contract_task_claims (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scene_contracts(scene_id) ON DELETE CASCADE,
+  module_id uuid NOT NULL,
+  task_id uuid NOT NULL,
+  requested_by text NOT NULL REFERENCES profiles(id),
+  reviewed_by text REFERENCES profiles(id),
+  state varchar(12) NOT NULL DEFAULT 'pending'
+    CHECK(state IN ('pending','approved','rejected')),
+  reward integer NOT NULL CHECK(reward BETWEEN 0 AND 5000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  UNIQUE(scene_id,module_id,task_id)
+);
+CREATE INDEX IF NOT EXISTS contract_claims_scene_idx
+  ON contract_task_claims(scene_id,created_at DESC);
