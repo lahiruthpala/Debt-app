@@ -3,6 +3,7 @@ import Link from "next/link"
 import { FormEvent, useEffect, useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
+import CommunityGames from "./community-games"
 
 type Role = "dom" | "sub"
 type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean }
@@ -51,6 +52,17 @@ export default function Dashboard() {
   const [challengeIndex,setChallengeIndex]=useState(0)
   const [forecast,setForecast]=useState(15000)
 
+  function notify(type:"pending"|"success"|"error",text:string) {
+    if(type==="error") {setMessage("");setError(text)}
+    else {setError("");setMessage(text)}
+  }
+  useEffect(()=>{
+    if(!error && !message)return
+    if(message.startsWith("Working") || message.startsWith("Processing"))return
+    const timeout=window.setTimeout(()=>{setError("");setMessage("")},7000)
+    return ()=>window.clearTimeout(timeout)
+  },[error,message])
+
   async function loadDetails(id:string) {
     try {const data=await api("scene",{id});setDetails(data)}
     catch(err){setDetails(null);setError(err instanceof Error ? err.message : "Could not load scene")}
@@ -88,18 +100,19 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab,me?.profile?.id])
 
-  async function searchProfiles() {
-    try {const data=await api("discover",{q:search});setProfiles(data.profiles)}
-    catch(err){setError(err instanceof Error?err.message:"Search failed")}
+  async function searchProfiles(showFeedback=false) {
+    if(showFeedback) notify("pending","Working on your search…")
+    try {const data=await api("discover",{q:search});setProfiles(data.profiles);if(showFeedback)notify("success",`Found ${data.profiles.length} matching profiles.`)}
+    catch(err){notify("error",err instanceof Error?err.message:"Search failed")}
   }
   async function act(payload:Record<string,unknown>) {
-    setBusy(true);setError("");setMessage("")
+    setBusy(true);notify("pending","Processing your action…")
     try {
       const outcome=await mutate(payload)
-      setMessage(outcome.message || "Saved")
+      notify("success",outcome.message || "Saved")
       await refresh()
       if(tab==="discover") await searchProfiles()
-    } catch(err){setError(err instanceof Error ? err.message : "Action failed")}
+    } catch(err){notify("error",err instanceof Error ? err.message : "Action failed")}
     finally{setBusy(false)}
   }
   function saveProfile(e:FormEvent) {
@@ -146,8 +159,15 @@ export default function Dashboard() {
           <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="games"?"The game room":"Your identity"}</h1></div>
         <div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div>
       </div>
-      {error && <div className="notice error-notice" role="alert">{error}<button onClick={()=>setError("")} aria-label="Dismiss">×</button></div>}
-      {message && <div className="notice success-notice" role="status">{message}<button onClick={()=>setMessage("")} aria-label="Dismiss">×</button></div>}
+      {(error || message) && <div className="feedback-layer">
+        {error ? <div className="action-toast failure error-notice" role="alert">
+          <span className="toast-icon" aria-hidden="true">!</span><div className="toast-copy"><small>ACTION NEEDS ATTENTION</small><p>{error}</p></div>
+          <button onClick={()=>setError("")} aria-label="Dismiss notification">×</button>
+        </div> : <div className={"action-toast "+(message.startsWith("Processing")||message.startsWith("Working")?"pending":"success")} role="status">
+          <span className="toast-icon" aria-hidden="true">{message.startsWith("Processing")||message.startsWith("Working")?"◌":"✓"}</span><div className="toast-copy"><small>{message.startsWith("Processing")||message.startsWith("Working")?"WORKING":"SUCCESSFULLY UPDATED"}</small><p>{message}</p></div>
+          <button onClick={()=>setMessage("")} aria-label="Dismiss notification">×</button>
+        </div>}
+      </div>}
 
       {!profile ? <div className="dash-card profile-setup">
         <div className="eyebrow">STEP 01 · PERSONAL IDENTITY</div><h2>Choose how you participate.</h2>
@@ -213,7 +233,7 @@ export default function Dashboard() {
         </>}
 
         {tab==="discover" && <div className="dash-card"><h3>Explore opt-in profiles</h3><p className="muted">Only adult profiles with the complementary role and discoverability enabled appear here. A connection starts only after they accept.</p>
-          <form className="search-row" onSubmit={e=>{e.preventDefault();void searchProfiles()}}><input value={search} maxLength={50} placeholder={"Search "+(ownRole==="dom"?"sub":"Dom")+" handles or bios..."} onChange={e=>setSearch(e.target.value)}/><button className="btn btn-red" type="submit">Search</button></form>
+          <form className="search-row" onSubmit={e=>{e.preventDefault();void searchProfiles(true)}}><input value={search} maxLength={50} placeholder={"Search "+(ownRole==="dom"?"sub":"Dom")+" handles or bios..."} onChange={e=>setSearch(e.target.value)}/><button className="btn btn-red" type="submit">Search</button></form>
           {profiles.length===0?<div className="empty-inner">No available profiles found. Try another search.</div>:<div className="people-list">{profiles.map(p=><div className="person" key={p.id}><span className="avatar">{p.handle[0].toUpperCase()}</span><div className="person-info"><b>@{p.handle}</b><small>{p.role.toUpperCase()} · {p.bio||"Exploring fictional scenes"}</small></div><button className="btn btn-outline" disabled={busy} onClick={()=>act({action:"invite",targetId:p.id})}>Invite ↗</button></div>)}</div>}
         </div>}
 
@@ -234,6 +254,8 @@ export default function Dashboard() {
         </>}
 
         {tab==="games" && <>
+          <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>
+          <div className="section-title community-classics"><h2>Studio classics</h2><span>BUILT-IN GAMES & TOOLS</span></div>
           {!scene?<div className="empty-block"><h2>Start a scene to unlock the game room.</h2><p>Connect with a partner and activate a consensual fictional ledger first.</p><button className="btn btn-red" onClick={()=>setTab("discover")}>Find a partner ↗</button></div>:<>
             <div className="scene-picker">{scenes.map(s=><button className={"scene-chip "+(selected===s.id?"selected":"")} key={s.id} onClick={()=>{setSelected(s.id);void loadDetails(s.id)}}>@{s.other_handle} <span className={"status status-"+s.status}>{s.status}</span></button>)}</div>
             <div className="game-grid">
