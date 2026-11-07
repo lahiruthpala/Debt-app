@@ -10,7 +10,7 @@ type Scene={scene_id:string;connection_id:string;title_snapshot:string;descripti
  principal:number;interest:number;penalties:number;start_principal:number}
 type Action={id:string;module_id:string;action:string;delta:number;details:Record<string,unknown>;created_at:string;actor_handle:string}
 type Claim={id:string;module_id:string;task_id:string;state:string;reward:number;requester_handle:string}
-type Detail={scene:Scene;actions:Action[];claims:Claim[]}
+type Detail={scene:Scene & {id:string};actions:Action[];claims:Claim[]}
 const id=()=>crypto.randomUUID()
 const money=(n:number)=>"LKR "+Number(n||0).toLocaleString("en-US")
 const starter=():ContractDefinition=>({
@@ -68,10 +68,10 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
   const configured=current?.modules_snapshot||[]
   const total=current?current.principal+current.interest+current.penalties:0
   const isPlayable=current?.status==="active" && current.connection_state==="active"
-  const existing=detail?.scene.scene_id===sceneId?detail:null
+  const existing=detail?.scene.id===sceneId?detail:null
 
   useEffect(()=>{setDefinition(starter())},[])
-  useEffect(()=>{if(activeConnections.length && !activeConnections.some(c=>c.id===connectionId))setConnectionId(activeConnections[0].id)},[connections,connectionId,activeConnections])
+  useEffect(()=>{if(activeConnections.length && !activeConnections.some(c=>c.id===connectionId))setConnectionId(activeConnections[0].id)},[connections,connectionId])
   useEffect(()=>{void loadTemplates();void loadScenes()},[])
   useEffect(()=>{if(sceneId)void loadDetails(sceneId);else setDetail(null)},[sceneId])
 

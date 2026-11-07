@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
+import ContractStudio from "./contract-studio"
 
 type Role = "dom" | "sub"
 type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean }
@@ -270,6 +271,8 @@ export default function Dashboard() {
         </>}
 
         {tab==="games" && <>
+          <ContractStudio connections={connections} role={profile.role} onNotify={notify} onChanged={refresh}/>
+          <div className="section-title contract-story-divider"><h2>Open-ended story games</h2><span>COMMUNITY NARRATIVE GAMES</span></div>
           <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>
           <div className="section-title community-classics"><h2>Studio classics</h2><span>BUILT-IN GAMES & TOOLS</span></div>
           {!scene?<div className="empty-block"><h2>Start a scene to unlock the game room.</h2><p>Connect with a partner and activate a consensual fictional ledger first.</p><button className="btn btn-red" onClick={()=>setTab("discover")}>Find a partner ↗</button></div>:<>

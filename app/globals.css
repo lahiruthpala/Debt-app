@@ -387,3 +387,60 @@ button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:1150px){.community-layout{grid-template-columns:1fr}.game-inspector{position:static}}
 @media(max-width:600px){.feedback-layer{bottom:12px;right:12px;width:calc(100vw - 24px)}.action-toast{padding:13px}.community-hero{flex-direction:column;align-items:flex-start;padding:22px}.community-hero>.btn{width:100%}.game-catalog{grid-template-columns:1fr}.community-tabs button{min-width:132px}.community-game-card{min-height:150px}.composer-actions .btn{flex:1}}
 @media(prefers-reduced-motion:reduce){.action-toast{animation:none}.community-game-card:hover{transform:none}}
+
+
+/* Configurable interactive debt contracts */
+.contract-workshop{margin:0 0 45px}.contract-hero{display:flex;justify-content:space-between;gap:25px;align-items:center;padding:31px;margin-bottom:17px;border:1px solid #765066;border-radius:16px;background:radial-gradient(ellipse at 100% 0%,#582a4a 0%,transparent 56%),linear-gradient(145deg,#2c1b2b,#140f17)}
+.contract-hero h2{font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.045em;line-height:1.12;margin:12px 0}.contract-hero p{color:#cab2c0;font-size:.84rem;line-height:1.75;max-width:630px}
+.contract-hero-glyph{font-size:5rem;position:relative;color:#e7b58c;text-shadow:0 0 35px #d5789852;flex-shrink:0}.contract-hero-glyph span{position:absolute;right:-9px;bottom:-18px;color:#d381a4;font-size:3.6rem}
+.contract-tabs{display:flex;gap:5px;overflow-x:auto;background:#1c141e;border:1px solid #433040;border-radius:11px;padding:5px;margin:0 0 19px}
+.contract-tabs button{display:flex;align-items:center;justify-content:center;gap:9px;flex:1;min-width:156px;background:transparent;border:1px solid transparent;border-radius:7px;box-shadow:none;color:#bfa9b8;font-size:.83rem;white-space:nowrap}
+.contract-tabs button.chosen,.contract-tabs button:hover{background:#452c3a;border-color:#865369;color:#fff}
+.contract-tabs small{padding:3px 7px;color:#e0b3ca;background:#3c2939;border-radius:13px}
+.contract-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(265px,.75fr);gap:18px;align-items:start}
+.contract-builder{min-width:0}.contract-builder>.eyebrow{color:#f0bd91}.contract-builder .form-grid{margin:17px 0}
+.contract-label{display:block;margin:15px 0;font-size:.67rem;font-weight:800;letter-spacing:.085em;color:#d4b0c1}
+.contract-label input,.contract-label textarea,.contract-label select{display:block;margin-top:10px;font-size:.85rem;letter-spacing:normal;font-weight:400}
+.contract-step{margin:28px 0 0;padding-top:22px;border-top:1px solid #44303c}.contract-hint{font-size:.74rem;line-height:1.65;color:#c3a8b8;margin:9px 0}
+.module-palette{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:17px 0}
+.module-palette button{padding:14px 8px;min-width:0;border:1px solid #644052;border-radius:10px;background:#2b1c2a;box-shadow:none;display:flex;flex-direction:column;align-items:center;gap:6px}
+.module-palette button:hover:not(:disabled){background:#4b273d;border-color:#d18dad}.module-palette span{font-size:1.6rem;color:#eab69d}.module-palette b{font-size:.72rem;text-align:center}.module-palette small{font-size:.62rem;color:#ddacc6}
+.module-editor{border:1px solid #614151;border-radius:12px;background:linear-gradient(135deg,#281c29,#1a151e);padding:18px;margin:12px 0}.module-editor-top{display:flex;align-items:center;gap:10px}
+.module-editor-top>b{flex:1;font-size:.78rem;letter-spacing:.1em;color:#e4b4c4}.module-editor-top .btn{font-size:.69rem;padding:7px 10px}
+.module-number{color:#d3a47c;border:1px solid #674658;border-radius:7px;padding:5px 8px;font-size:.67rem;font-weight:800}
+.module-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.module-fields label{font-size:.67rem;color:#d6b6c4}.module-fields input{margin-top:7px}.module-fields .contract-hint{grid-column:1/-1}
+.wheel-outcome,.task-builder-row{display:grid;grid-template-columns:minmax(0,1fr) 108px 30px;align-items:center;gap:7px;margin-bottom:8px}
+.wheel-outcome input,.task-builder-row input{font-size:.8rem;padding:10px}.wheel-outcome button,.task-builder-row button{background:#43263a;border:1px solid #694258;padding:9px 3px;box-shadow:none}
+.wheel-editor>.btn,.task-editor>.btn{margin-top:7px;font-size:.74rem}
+.contract-publish-actions{display:flex;gap:9px;flex-wrap:wrap;margin:22px 0}.contract-side{position:sticky;top:20px}.contract-side>.dash-card{border-color:#604352}.contract-preview h3{font-size:1.34rem;margin:14px 0;overflow-wrap:anywhere}
+.preview-debt-value{font-size:clamp(1.6rem,2.4vw,2.1rem);font-weight:800;letter-spacing:-.025em;color:#f6d4b2;margin:19px 0}
+.contract-preview-line{display:flex;justify-content:space-between;gap:9px;padding:12px 0;border-bottom:1px solid #4a303f;color:#bba6b5;font-size:.77rem}.contract-preview-line b{color:#fff}
+.contract-preview-modules,.contract-module-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:19px}.contract-preview-modules span,.contract-module-chips span{font-size:.69rem;color:#ebc5d3;border:1px solid #66495b;border-radius:30px;padding:7px 10px;background:#301f2f}
+.contract-template-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}.contract-template{min-width:0;border:1px solid #644456;border-radius:13px;padding:22px;background:radial-gradient(ellipse at 100% 0%,#422438,transparent 70%),#1d151f;display:flex;flex-direction:column;gap:10px}
+.contract-template h3{font-size:1.18rem;overflow-wrap:anywhere}.contract-template p{flex:1;color:#bda6b4;font-size:.8rem;line-height:1.7;overflow-wrap:anywhere}
+.contract-template-value{font-size:1.3rem;font-weight:800;color:#efcba6}.contract-template-value small{display:block;font-size:.59rem;color:#ad8c9e;letter-spacing:.08em}
+.contract-template .btn{align-self:flex-start;margin-top:14px}.contract-template.mine{background:#201922}.contract-mine-title{margin-top:33px}
+.contract-play-area{min-width:0}.contract-active-banner{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:23px 26px;background:linear-gradient(125deg,#43243a,#211521);border:1px solid #89556d;border-radius:12px;margin-bottom:14px}
+.contract-active-banner h2{margin:8px 0;font-size:1.55rem;letter-spacing:-.03em}.contract-active-banner p{font-size:.76rem;color:#c9a5ba;line-height:1.6}
+.contract-active-banner>div:last-child{text-align:right;flex-shrink:0}.contract-active-banner>div:last-child small{display:block;font-size:.59rem;color:#d3a5ae;letter-spacing:.06em}
+.contract-active-banner>div:last-child strong{display:block;margin-top:7px;color:#f4cea4;font-size:1.6rem}
+.contract-consent{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 24px;background:#211a25;border:1px solid #574353;border-radius:10px;padding:13px 17px}
+.contract-consent p{font-size:.77rem;line-height:1.6;flex:1;min-width:200px;color:#dac2ce}.contract-consent .btn{font-size:.72rem}
+.contract-game-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:17px 0 25px}
+.contract-game-card{min-width:0;border:1px solid #593f50;border-radius:13px;padding:21px;background:radial-gradient(ellipse at right top,#392238,transparent 60%),#1c161e}
+.contract-game-title{display:flex;gap:11px;align-items:center;margin-bottom:15px}.contract-game-icon{display:grid;place-items:center;width:43px;height:43px;flex-shrink:0;font-size:1.7rem;color:#edb99b;background:#462637;border-radius:10px}
+.contract-game-title small{font-size:.59rem;letter-spacing:.12em;color:#b990a4}.contract-game-title h3{font-size:1.12rem;margin:4px 0;overflow-wrap:anywhere}
+.contract-game-card>p{font-size:.77rem;color:#bba4b2;line-height:1.7;margin-bottom:17px}.contract-availability{display:block;color:#bca1ae;font-size:.68rem;margin-top:10px}
+.dice-display{display:flex;justify-content:center;align-items:center;gap:16px;margin:17px 0}.dice-display>div{display:flex;flex-direction:column;align-items:center;border-radius:10px;background:#352235;border:1px solid #724b61;padding:14px 22px}
+.dice-display small{font-size:.6rem;color:#d4aebd}.dice-display strong{font-size:1.8rem;color:#f4ddca}.dice-display>span{color:#b79eaa;font-size:.67rem;font-weight:800}
+.wheel-live{width:122px;height:122px;display:grid;place-items:center;border:5px solid #d7b4a1;border-radius:50%;margin:13px auto;box-shadow:0 9px 25px #0008}
+.wheel-live span{width:50px;height:50px;display:grid;place-items:center;background:#241722;border-radius:50%;color:#efc99e;font-size:1.7rem}
+.wheel-summary{display:flex;flex-direction:column;gap:3px;margin-bottom:15px;max-height:83px;overflow:auto}.wheel-summary span{font-size:.68rem;color:#baa8b3}
+.contract-checkin-glyph{text-align:center;font-size:3rem;color:#e1b392;padding:15px 0}.contract-checkin-glyph span{display:block;font-size:.75rem;color:#cab5c0}
+.contract-result{margin-top:15px;border:1px solid #5d845e;background:#243329;border-radius:9px;padding:13px;color:#c6e9c3}.contract-result b{display:block;font-size:.83rem}.contract-result small{display:block;margin-top:5px}
+.contract-task{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0;border-top:1px solid #503746}.contract-task>div:first-child{flex:1;min-width:0}
+.contract-task b{display:block;font-size:.78rem;overflow-wrap:anywhere}.contract-task small{display:block;margin-top:5px;color:#b99bad;font-size:.69rem}
+.contract-task .btn{font-size:.69rem;padding:9px}.contract-audit .section-title{margin-bottom:14px}
+.contract-story-divider{margin-top:34px;border-top:1px solid #483241;padding-top:27px}
+@media(max-width:1200px){.contract-layout{grid-template-columns:1fr}.contract-side{position:static}.contract-game-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.contract-hero{padding:21px}.contract-hero-glyph{display:none}.module-palette{grid-template-columns:repeat(2,minmax(0,1fr))}.contract-template-grid,.contract-game-grid{grid-template-columns:1fr}.contract-active-banner{flex-direction:column;align-items:flex-start}.contract-active-banner>div:last-child{text-align:left}.wheel-outcome,.task-builder-row{grid-template-columns:minmax(0,1fr) 84px 28px}.module-fields{grid-template-columns:1fr}.contract-publish-actions .btn{flex:1}}
