@@ -153,7 +153,8 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
 
     // All simulated credits are recorded, never real payments.
     await subPage.getByRole("button", { name: "Apply credit" }).click()
-    await expect(subPage.locator(".big-balance")).toHaveText("LKR 235,000")
+    await expect(subPage.getByRole("status")).toContainText("Applied 15,000 simulated credits")
+    await expect(subPage.locator(".big-balance")).toHaveText("LKR 235,000", { timeout: 30_000 })
     await expect(subPage.getByText(/Fictional payment credit applied/)).toBeVisible()
     const scenesResponse = await subPage.request.get("/api/studio?view=scenes")
     expect(scenesResponse.status()).toBe(200)

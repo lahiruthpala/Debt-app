@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useRef, useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [credit,setCredit]=useState(15000)
   const [challengeIndex,setChallengeIndex]=useState(0)
   const [forecast,setForecast]=useState(15000)
+  const refreshId=useRef(0)
 
   function notify(type:"pending"|"success"|"error",text:string) {
     if(type==="error") {setMessage("");setError(text)}
@@ -67,27 +68,41 @@ export default function Dashboard() {
     try {const data=await api("scene",{id});setDetails(data)}
     catch(err){setDetails(null);setError(err instanceof Error ? err.message : "Could not load scene")}
   }
+  // Apply snapshots atomically, and discard slower requests superseded by
+  // navigation or an action-triggered refresh. This avoids stale ledger views.
   async function refresh() {
-    setError("")
+    const revision=++refreshId.current
     try {
       const own=await api("me")
-      setMe(own)
+      if(revision!==refreshId.current)return
       if(own.profile) {
         const [c,s]=await Promise.all([api("connections"),api("scenes")])
-        setConnections(c.connections);setScenes(s.scenes)
-        setPf({handle:own.profile.handle,role:own.profile.role,bio:own.profile.bio,discoverable:own.profile.discoverable,adult:true})
-        const next = selected && s.scenes.some((x:Scene)=>x.id===selected)
+        if(revision!==refreshId.current)return
+        const sceneList=s.scenes as Scene[]
+        const next = selected && sceneList.some(x=>x.id===selected)
           ? selected
-          : (s.scenes.find((x:Scene)=>x.status==="active")?.id || s.scenes[0]?.id || "")
+          : (sceneList.find(x=>x.status==="active")?.id || sceneList[0]?.id || "")
+        const detail=next ? await api("scene",{id:next}) : null
+        if(revision!==refreshId.current)return
+        setMe(own)
+        setConnections(c.connections)
+        setScenes(sceneList)
+        setPf({handle:own.profile.handle,role:own.profile.role,bio:own.profile.bio,discoverable:own.profile.discoverable,adult:true})
         setSelected(next)
-        if (next) await loadDetails(next)
-        else setDetails(null)
+        setDetails(detail)
       } else {
-        setConnections([]);setScenes([])
+        setMe(own)
+        setConnections([])
+        setScenes([])
+        setDetails(null)
+        setSelected("")
         setPf(current=>({...current,handle:sessionStorage.getItem("vl_signup_handle")||"",role:(sessionStorage.getItem("vl_signup_role")==="dom"?"dom":"sub") as Role}))
       }
-    } catch(err){setError(err instanceof Error ? err.message : "Unable to connect")}
-    finally{setLoading(false)}
+    } catch(err){
+      if(revision===refreshId.current)notify("error",err instanceof Error ? err.message : "Unable to connect")
+    } finally{
+      if(revision===refreshId.current)setLoading(false)
+    }
   }
   useEffect(()=>{
     if(!isPending && session) { void refresh() }
@@ -129,7 +144,8 @@ export default function Dashboard() {
   }
   const profile=me?.profile
   const ownRole=profile?.role
-  const scene=details?.scene && details.scene.id===selected ? details.scene : scenes.find(s=>s.id===selected)
+  const currentDetails=details?.scene && details.scene.id===selected ? details : null
+  const scene=currentDetails?.scene || scenes.find(s=>s.id===selected)
   const total=scene ? scene.principal+scene.interest+scene.penalties : 0
   const progress=scene ? Math.min(100,Math.max(0,100*(scene.start_principal-total)/Math.max(scene.start_principal,1))) : 0
   const active=scene?.status==="active" && scene.connection_state==="active"
@@ -227,7 +243,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="dash-card"><h3>Ledger activity <span className="mini-label">AUDIT TRAIL</span></h3>
-              {!details?.events?.length?<p className="muted">No recorded actions yet.</p>:<div className="timeline">{details.events.map(item=><div className="timeline-row" key={item.id}><span className="event-icon">{item.amount<0?"−":item.amount>0?"+":"◇"}</span><div className="event-copy"><b>{item.detail}</b><small>@{item.actor} · {date(item.created_at)}</small></div><strong className={item.amount<0?"green":"gold"}>{item.amount===0?"—":(item.amount>0?"+":"−")+money(Math.abs(item.amount))}</strong></div>)}</div>}
+              {!currentDetails?.events?.length?<p className="muted">No recorded actions yet.</p>:<div className="timeline">{currentDetails.events.map(item=><div className="timeline-row" key={item.id}><span className="event-icon">{item.amount<0?"−":item.amount>0?"+":"◇"}</span><div className="event-copy"><b>{item.detail}</b><small>@{item.actor} · {date(item.created_at)}</small></div><strong className={item.amount<0?"green":"gold"}>{item.amount===0?"—":(item.amount>0?"+":"−")+money(Math.abs(item.amount))}</strong></div>)}</div>}
             </div></>}
           </>}
         </>}
@@ -265,7 +281,7 @@ export default function Dashboard() {
             <div className="dash-card"><div className="section-title"><h2>Challenge board</h2><span>GAME 03 / CO-OP</span></div>
               <p className="muted">Doms issue preset non-financial tasks. Subs mark them complete to earn imaginary balance reductions. No real-world obligations are created.</p>
               {ownRole==="dom" && <div className="quest-compose"><select value={challengeIndex} onChange={e=>setChallengeIndex(Number(e.target.value))} disabled={!active}>{QUESTS.map((q,i)=><option key={q.title} value={i}>{q.title} · {q.reward.toLocaleString()} credits</option>)}</select><button className="btn btn-red" disabled={busy||!active} onClick={()=>act({action:"quest",sceneId:selected,index:challengeIndex})}>Issue challenge</button></div>}
-              {!details?.challenges.length?<div className="empty-inner">No challenges issued yet.</div>:<div className="quest-list">{details.challenges.map(c=><div className="quest" key={c.id}><div className="quest-symbol">◇</div><div className="quest-info"><b>{c.title}</b><small>{c.state==="completed"?"Completed · reward applied":"Open · pending sub completion"}</small></div><strong>−{money(c.reward)}</strong>{ownRole==="sub" && c.state==="open" && <button className="btn btn-outline" disabled={busy||!active} onClick={()=>act({action:"complete",sceneId:selected,challengeId:c.id})}>Complete</button>}</div>)}</div>}
+              {!currentDetails?.challenges.length?<div className="empty-inner">No challenges issued yet.</div>:<div className="quest-list">{currentDetails.challenges.map(c=><div className="quest" key={c.id}><div className="quest-symbol">◇</div><div className="quest-info"><b>{c.title}</b><small>{c.state==="completed"?"Completed · reward applied":"Open · pending sub completion"}</small></div><strong>−{money(c.reward)}</strong>{ownRole==="sub" && c.state==="open" && <button className="btn btn-outline" disabled={busy||!active} onClick={()=>act({action:"complete",sceneId:selected,challengeId:c.id})}>Complete</button>}</div>)}</div>}
             </div>
           </>}
         </>}
