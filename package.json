@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/migrate.mjs",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "better-auth": "^1.7.0",
@@ -23,6 +24,7 @@
     "@types/pg": "^8.15.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "@playwright/test": "^1.56.0"
   }
 }

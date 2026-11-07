@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { FormEvent, useState } from "react"
+import { FormEvent, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import { authClient } from "@/lib/auth-client"
@@ -15,11 +15,27 @@ function LoginForm() {
   const [adult,setAdult] = useState(false)
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState("")
+  const [health,setHealth] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/health", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}))
+        if (!cancelled && !response.ok) {
+          setHealth(data.message || "Accounts are temporarily unavailable.")
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHealth("Cannot reach the account service.")
+      })
+    return () => { cancelled = true }
+  }, [])
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); setError("")
     if (mode==="signup" && !adult) { setError("You must confirm you are at least 18 years old."); return }
     setBusy(true)
     try {
+      if (health) throw new Error(health)
       if (mode === "signup") {
         if (!/^[a-zA-Z0-9_]{3,24}$/.test(handle)) throw new Error("Handle must be 3–24 letters, numbers or underscores")
         const result = await authClient.signUp.email({ email, password, name: handle })
@@ -56,7 +72,8 @@ function LoginForm() {
         <label>EMAIL<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" /></label>
         <label>PASSWORD<input type="password" required minLength={mode==="signup" ? 10 : 1} autoComplete={mode==="signup" ? "new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="signup" ? "At least 10 characters":"Your password"} /></label>
         {mode==="signup" && <label className="check-label"><input type="checkbox" checked={adult} onChange={e=>setAdult(e.target.checked)} /><span>I am 18 or older. I understand this platform is consensual roleplay only; I may withdraw consent at any time.</span></label>}
-        {error && <p className="error">{error}</p>}
+        {health && <p className="error" role="alert">{health}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
         <button className="btn btn-red btn-lg full" type="submit" disabled={busy}>{busy ? "Working..." : mode === "signup" ? "Create my account" : "Sign in"} <span>↗</span></button>
       </form>
       <p className="auth-foot">Private handles only. Email is never listed in discovery.<br/>No money or legally enforceable debt is involved.</p>
