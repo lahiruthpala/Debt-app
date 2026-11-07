@@ -7,7 +7,7 @@ const origin=new URL(process.env.PLAYWRIGHT_BASE_URL||"http://127.0.0.1:3000").o
 async function submitSignup(page: Page) {
   for(let attempt=0;attempt<3;attempt++){
     const response=page.waitForResponse(r=>r.url().includes("/api/auth/sign-up/email")&&r.request().method()==="POST")
-    await submitSignup(page)
+    await page.getByRole("button",{name:/Create my account/}).click()
     const result=await response
     if(result.status()===429){
       // Respect Better Auth's per-IP signup rate limit between CI browser journeys.
@@ -32,7 +32,7 @@ async function makeUser(browser:Browser,role:"DOM"|"SUB",handle:string){
   await page.getByLabel("EMAIL").fill("e2e-"+handle+"@example.invalid")
   await page.getByLabel("PASSWORD").fill(password)
   await page.getByRole("checkbox").check()
-  await page.getByRole("button",{name:/Create my account/}).click()
+  await submitSignup(page)
   await expect(page).toHaveURL(/\/dashboard/,{timeout:25000})
   await page.getByRole("checkbox",{name:/I confirm that I am 18/}).check()
   await page.getByRole("button",{name:/Complete setup/}).click()
