@@ -1,0 +1,226 @@
+:root {
+  --bg: #0a0a0a;
+  --card: #141414;
+  --border: #2a2a2a;
+  --red: #c41e3a;
+  --red-dark: #8b0000;
+  --text: #e8e8e8;
+  --muted: #888;
+  --gold: #d4af37;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1.5rem;
+}
+
+header h1 {
+  font-size: 1.75rem;
+  letter-spacing: 0.08em;
+  color: var(--red);
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+header p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card h2 {
+  font-size: 1.1rem;
+  color: var(--gold);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat {
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.stat .label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+
+.stat .value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--red);
+}
+
+.stat .value.gold {
+  color: var(--gold);
+}
+
+.contract-body {
+  font-size: 0.92rem;
+  color: #ccc;
+}
+
+.contract-body h3 {
+  color: var(--red);
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.contract-body p, .contract-body li {
+  margin-bottom: 0.4rem;
+}
+
+.contract-body ul {
+  padding-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+button {
+  background: var(--red-dark);
+  color: white;
+  border: none;
+  padding: 0.7rem 1.2rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: var(--red);
+}
+
+button.secondary {
+  background: #222;
+  border: 1px solid var(--border);
+}
+
+button.secondary:hover {
+  background: #333;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.log {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  background: #111;
+  border-radius: 6px;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.log-entry {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #222;
+  color: #aaa;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-entry strong {
+  color: var(--gold);
+}
+
+.disclaimer {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #1a0505;
+  border: 1px solid var(--red-dark);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #c88;
+  text-align: center;
+}
+
+.signature-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.signature {
+  text-align: center;
+}
+
+.signature .name {
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 0.25rem;
+}
+
+.signature .role {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  .signature-block {
+    grid-template-columns: 1fr;
+  }
+  header h1 {
+    font-size: 1.35rem;
+  }
+}
