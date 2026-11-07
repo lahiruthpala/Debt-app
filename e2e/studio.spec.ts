@@ -90,7 +90,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await domPage.getByRole("button", { name: /Agreed late fee/ }).click()
     await expect(domPage.getByRole("status")).toContainText("Agreed late fee applied")
     await domPage.getByRole("button", { name: /Agreed late fee/ }).click()
-    await expect(domPage.getByRole("alert")).toContainText(/seven days/)
+    await expect(domPage.locator(".error-notice")).toContainText(/seven days/)
 
     // The sub cannot propose new terms, and the Dom cannot submit simulated payments.
     const illegalProposal = await subPage.request.post("/api/studio", {
@@ -110,7 +110,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await subPage.getByRole("button", { name: /Roll the dice/ }).click()
     await expect(subPage.getByRole("status")).toContainText("Rolled")
     await subPage.getByRole("button", { name: /Roll the dice/ }).click()
-    await expect(subPage.getByRole("alert")).toContainText(/24 hours/)
+    await expect(subPage.locator(".error-notice")).toContainText(/24 hours/)
 
     await domPage.reload()
     await visit(domPage, "Game room")
