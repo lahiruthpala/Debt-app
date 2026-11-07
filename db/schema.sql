@@ -114,3 +114,53 @@ CREATE TABLE IF NOT EXISTS challenges (
   completed_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS challenges_scene_idx ON challenges(scene_id,created_at DESC);
+
+-- Community-created, text-driven games. No user-supplied executable code or ledger mutations.
+CREATE TABLE IF NOT EXISTS community_games (
+  id uuid PRIMARY KEY,
+  author_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  title varchar(80) NOT NULL CHECK (char_length(title) BETWEEN 3 AND 80),
+  summary varchar(240) NOT NULL CHECK (char_length(summary) BETWEEN 10 AND 240),
+  category varchar(30) NOT NULL CHECK (char_length(category) BETWEEN 3 AND 30),
+  rules text NOT NULL CHECK (char_length(rules) BETWEEN 20 AND 4000),
+  opening_prompt varchar(1000) NOT NULL DEFAULT '',
+  published boolean NOT NULL DEFAULT false,
+  published_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS community_games_discover_idx ON community_games (published, published_at DESC);
+
+CREATE TABLE IF NOT EXISTS community_game_sessions (
+  id uuid PRIMARY KEY,
+  game_id uuid NOT NULL REFERENCES community_games(id) ON DELETE RESTRICT,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  started_by text NOT NULL REFERENCES profiles(id),
+  title_snapshot varchar(80) NOT NULL,
+  rules_snapshot text NOT NULL,
+  prompt_snapshot varchar(1000) NOT NULL,
+  state varchar(12) NOT NULL DEFAULT 'active' CHECK (state IN ('active','finished')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS community_game_sessions_scene_idx
+  ON community_game_sessions (scene_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS community_game_sessions_one_active_idx
+  ON community_game_sessions (scene_id) WHERE state='active';
+
+CREATE TABLE IF NOT EXISTS community_game_turns (
+  id uuid PRIMARY KEY,
+  session_id uuid NOT NULL REFERENCES community_game_sessions(id) ON DELETE CASCADE,
+  actor_id text NOT NULL REFERENCES profiles(id),
+  content varchar(1200) NOT NULL CHECK (char_length(content) BETWEEN 1 AND 1200),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS community_game_turns_session_idx ON community_game_turns (session_id,created_at,id);
+
+CREATE TABLE IF NOT EXISTS community_game_reports (
+  game_id uuid NOT NULL REFERENCES community_games(id) ON DELETE CASCADE,
+  reporter_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  reason varchar(500) NOT NULL CHECK (char_length(reason) BETWEEN 10 AND 500),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (game_id, reporter_id)
+);
