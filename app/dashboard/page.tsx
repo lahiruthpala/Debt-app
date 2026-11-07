@@ -133,7 +133,7 @@ export default function Dashboard() {
       {([
         ["overview","▦","Overview"],["discover","⌕","Discover"],["connections","◇","Connections"],
         ["games","♢","Game room"],["profile","◎","My profile"],
-      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>setTab(id)}>
+      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
       <div className="rail-bottom"><div className="rail-legal">18+ CONSENSUAL ROLEPLAY<br/>ALL BALANCES ARE FICTIONAL</div>
