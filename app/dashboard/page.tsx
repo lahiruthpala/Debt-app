@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [challengeIndex,setChallengeIndex]=useState(0)
   const [forecast,setForecast]=useState(15000)
   const refreshId=useRef(0)
+  const profileSearchId=useRef(0)
 
   function notify(type:"pending"|"success"|"error",text:string) {
     if(type==="error") {setMessage("");setError(text)}
@@ -117,9 +118,16 @@ export default function Dashboard() {
   },[tab,me?.profile?.id])
 
   async function searchProfiles(showFeedback=false) {
+    const revision=++profileSearchId.current
     if(showFeedback) notify("pending","Working on your search…")
-    try {const data=await api("discover",{q:search});setProfiles(data.profiles);if(showFeedback)notify("success",`Found ${data.profiles.length} matching profiles.`)}
-    catch(err){notify("error",err instanceof Error?err.message:"Search failed")}
+    try {
+      const data=await api("discover",{q:search})
+      if(revision!==profileSearchId.current)return
+      setProfiles(data.profiles)
+      if(showFeedback)notify("success",`Found ${data.profiles.length} matching profiles.`)
+    } catch(err){
+      if(revision===profileSearchId.current)notify("error",err instanceof Error?err.message:"Search failed")
+    }
   }
   async function act(payload:Record<string,unknown>) {
     setBusy(true);notify("pending","Processing your action…")
