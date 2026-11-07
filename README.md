@@ -11,6 +11,9 @@
 - Either party can pause or permanently end a scene at any time; only the sub may resume
 - Persistent audit trail, penalties → interest → principal payment allocation
 - Monthly compounded interest and weekly late fees are **manual** actions with cooldowns
+- Community Game Studio: write original rules and opening prompts, save drafts, publish to Discover, edit/unpublish your games, and play collaborative turn-based sessions inside approved scenes
+- Game sessions preserve the original rules, support both participants' free-form turns, and can be finished by either partner. Game moves never change the fictional ledger
+- Fixed-position action toasts show immediate progress, success and errors even when scrolled to the bottom of the dashboard
 - Multiplayer Debt Dice (server-side RNG, 24-hour cooldown), cooperative challenge board, payoff simulator
 - Standalone solo simulator at `/sandbox`, retained from v1 with generic example characters
 
@@ -54,7 +57,7 @@ npm run test:e2e
 Playwright runs in Chromium against a real Next.js server. On every GitHub push, the CI job
 starts disposable PostgreSQL 16, runs schema migrations and a production build, and
 executes browser tests for both roles, sign-up/sign-in, discovery/invitations, consent,
-ledger updates, challenges, Debt Dice, pause/resume, termination and blocking.
+ledger updates, challenges, Debt Dice, pause/resume, termination and blocking.\nThe expanded journey also covers publishing custom games, creator authorization, discovery,\nshared turns, game completion and confirming balances are unaffected.
 Failures upload screenshots, Playwright traces and the HTML report to Actions artifacts.
 
 Locally, set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=http://127.0.0.1:3000`,
@@ -73,6 +76,8 @@ is unavailable, check this endpoint first. The CI database is **not** the produc
 - All scene writes are server-authenticated, validated, and scoped to participants. Ledger mutations use row locks and transactions.
 - Blocking ends active scenes and prevents future invitations from that account. Scene termination never requires the other party's approval.
 - All balances are **fictional**. Pressing "payment" only records imaginary credits and cannot send money.
+- Public game content is user-authored text, displayed as escaped text, not executable code. Game sessions are restricted to approved scene participants; a paused scene rejects new moves. Publication changes are creator-only and game reports are recorded for review.
+- Community games currently support flexible human-written rules and manually entered turns, not arbitrary executable rule engines, automatic scoring, or real-time chat delivery. Players can refresh turns to see their partner's updates.
 - This prototype uses **self-declared** adult status, not independently verified age; it also does not yet provide email-based password recovery or automated account deletion. Those are important before promoting the service broadly.
 - Never record real banking details, addresses, private images or intimate information in profile bios.
 

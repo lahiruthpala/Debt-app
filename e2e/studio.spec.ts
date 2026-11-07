@@ -141,6 +141,14 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
       return rect.top>=0 && rect.bottom<=window.innerHeight
     })
     expect(toastVisibleHere).toBe(true)
+    // Keep synthetic production test games out of the public library.
+    const unpublish = await domPage.request.post("/api/games", {
+      headers: { origin: apiOrigin },
+      data: { action: "publish", gameId: game.id, publish: false },
+    })
+    expect(unpublish.status()).toBe(200)
+    const hidden = await subPage.request.get("/api/games?view=library&q=" + creativeTitle)
+    expect((await hidden.json()).games).toHaveLength(0)
     await visit(subPage, "Overview")
 
     // All simulated credits are recorded, never real payments.
