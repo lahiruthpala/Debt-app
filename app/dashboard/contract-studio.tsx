@@ -335,7 +335,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
               {module.type!=="tasks" && <><button className="btn btn-red full" disabled={!isPlayable||busy||cooling||(module.type==="checkin"&&role!=="sub")}
                 onClick={()=>void play(module.id)}>{module.type==="dice"?"⚄ Roll dice":module.type==="wheel"?"✺ Spin the wheel":"✓ Check in"}</button>
                 <small className="contract-availability">{cooling?"Cooldown · available later":!isPlayable?"Activate contract to play":cooldown===0?"Available (daily safety limit applies)":"Available · cooldown "+cooldown+"h"}</small></>}
-              {outcome&&<div className="contract-result" role="status">
+              {outcome&&<div className="contract-result">
                 <b>{outcome.delta<0?"− "+money(Math.abs(outcome.delta))+" credit":outcome.delta>0?"+ "+money(outcome.delta)+" penalty":"No balance change"}</b>
                 {outcome.details.label!==undefined&&<small>{String(outcome.details.label)}</small>}
               </div>}
