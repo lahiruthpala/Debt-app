@@ -119,7 +119,8 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
   }
   async function save(publish:boolean,propose=false){
     if(!definition)return
-    const result=await doAction({action:"save",definition,publish,...(editing?{templateId:editing}:{})},
+    const visibility=propose&&editing ? (mine.find(t=>t.id===editing)?.published ?? publish) : publish
+    const result=await doAction({action:"save",definition,publish:visibility,...(editing?{templateId:editing}:{})},
       value=>setEditing(value.id))
     if(result?.id && propose && connectionId){
       await doAction({action:"propose",connectionId,templateId:result.id},()=>{
@@ -324,7 +325,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
               {module.type==="dice"&&<><p>Roll a d{module.sides} against the server. The difference changes the fictional balance by {money(module.stake)} per point.</p>
                 <div className="dice-display"><div><small>YOU</small><strong>{outcome?.details.playerRoll===undefined?"?":String(outcome.details.playerRoll)}</strong></div><span>VS</span><div><small>SERVER</small><strong>{outcome?.details.botRoll===undefined?"?":String(outcome.details.botRoll)}</strong></div></div></>}
               {module.type==="wheel"&&<><p>Spin a wheel with {module.outcomes.length} equally likely custom outcomes.</p>
-                <div className="wheel-live" style={{background:"conic-gradient("+module.outcomes.map((_,i)=>{
+                <div className={"wheel-live "+(outcome?"spinning":"")} style={{background:"conic-gradient("+module.outcomes.map((_,i)=>{
                   const colors=["#b84e69","#e0a970","#7b729d","#6d9a8b"]
                   return colors[i%colors.length]+" "+(i*100/module.outcomes.length)+"% "+((i+1)*100/module.outcomes.length)+"%"
                 }).join(",")+")"}}><span>✦</span></div>
