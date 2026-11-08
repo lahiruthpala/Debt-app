@@ -102,7 +102,7 @@ export default function QuickGameGallery({sceneId,active,role,onNotify,onChanged
            {running===game.key?"Resolving…":game.key==="cards"?"Draw mystery card":"Play "+game.title+" ↗"}
          </button>
          <small className="quick-mini-availability">{waiting||(!active?"Activate a scene to play.":role!=="sub"?"Sub initiates ledger-changing rounds.":"Ready when you are.")}</small>
-         {result && <div className="quick-mini-result" role="status">
+         {result && <div className="quick-mini-result">
            <b>{result.label}</b>
            <span>{result.delta<0?"Credit −"+money(-result.delta):result.delta>0?"Penalty +"+money(result.delta):"No change"}</span>
          </div>}
