@@ -50,6 +50,25 @@ function total(scene:any){return scene.principal+scene.interest+scene.penalties}
 
 const liveProofs=process.env.PLAYWRIGHT_SKIP_WEBSERVER==="1"
 const testPhoto=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+b2S8AAAAASUVORK5CYII=","base64")
+function paymentTestPdf():Buffer {
+  const objects=[
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"
+  ]
+  let data="%PDF-1.4\n"
+  const offsets=[0]
+  for(const [i,object] of objects.entries()){
+    offsets.push(Buffer.byteLength(data))
+    data+=(i+1)+" 0 obj\n"+object+"\nendobj\n"
+  }
+  const xref=Buffer.byteLength(data)
+  data+="xref\n0 4\n0000000000 65535 f \n"
+  for(const offset of offsets.slice(1))data+=String(offset).padStart(10,"0")+" 00000 n \n"
+  data+="trailer\n<< /Root 1 0 R /Size 4 >>\nstartxref\n"+xref+"\n%%EOF\n"
+  return Buffer.from(data,"ascii")
+}
+const testPdf=paymentTestPdf()
 async function uploadProof(page:Page,selector:string) {
   const form=page.locator(selector).first()
   await form.locator('input[type="file"]').setInputFiles({name:"synthetic-pixel.png",mimeType:"image/png",buffer:testPhoto})
@@ -225,6 +244,54 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       await approveProof(dom.page,"Simulated payment proof")
       const paid=await json(dom.page,"/api/contracts?view=scene&id="+scene.scene_id)
       expect(total(paid.scene)).toBe(total(beforePayment.scene)-Math.min(12000,total(beforePayment.scene)))
+      // Payment proof PDFs are private downloads; submitting them does not change the balance.
+      const badPdf=await sub.page.request.post("/api/proofs",{
+        headers:{origin},multipart:{
+          sceneId:scene.scene_id,kind:"payment",amount:"9000",note:"Invalid test",consent:"yes",
+          file:{name:"fake.pdf",mimeType:"application/pdf",buffer:Buffer.from("<html>Not a PDF</html>")}
+        }
+      })
+      expect(badPdf.status()).toBe(400)
+      expect((await badPdf.json()).error).toMatch(/valid PDF/)
+      await paymentForm.getByLabel("Simulated credit amount").fill("9000")
+      expect(await paymentForm.locator('input[type="file"]').getAttribute("accept")).toContain("application/pdf")
+      await paymentForm.locator('input[type="file"]').setInputFiles({
+        name:"payment-receipt.pdf",mimeType:"application/pdf",buffer:testPdf
+      })
+      await paymentForm.getByRole("checkbox").check()
+      await paymentForm.getByRole("button",{name:/Submit for review/}).click()
+      await expect(sub.page.locator(".action-toast")).toContainText("Private proof submitted",{timeout:30000})
+      const waitingPdf=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
+      expect(total(waitingPdf.scene)).toBe(total(paid.scene))
+      const pdfRecord=(await json(sub.page,"/api/proofs?sceneId="+scene.scene_id)).proofs.find(
+        (p:{kind:string;amount:number;content_type:string})=>p.kind==="payment"&&p.amount===9000)
+      expect(pdfRecord.content_type).toBe("application/pdf")
+      await dom.page.locator(".proof-center").getByRole("button",{name:/Refresh/}).click()
+      const pdfCard=dom.page.locator(".proof-center .proof-item").filter({hasText:"9,000 simulated credits"}).first()
+      const download=pdfCard.getByRole("link",{name:"Download private PDF"})
+      await expect(download).toBeVisible()
+      const href=await download.getAttribute("href")
+      expect(href).toBeTruthy()
+      const fileResponse=await dom.page.request.get(href!)
+      expect(fileResponse.status()).toBe(200)
+      expect(fileResponse.headers()["content-type"]).toMatch(/^application\/pdf/)
+      expect(fileResponse.headers()["content-disposition"]).toMatch(/attachment/)
+      expect(fileResponse.headers()["x-content-type-options"]).toBe("nosniff")
+      expect((await fileResponse.body()).equals(testPdf)).toBe(true)
+      expect((await dom.page.request.get("/api/proofs?view=image&id="+pdfRecord.id)).status()).toBe(404)
+      await pdfCard.getByRole("button",{name:"Approve proof"}).click()
+      await expect(dom.page.locator(".action-toast")).toContainText("Proof approved")
+      const paidPdf=await json(dom.page,"/api/contracts?view=scene&id="+scene.scene_id)
+      expect(total(paidPdf.scene)).toBe(total(paid.scene)-Math.min(9000,total(paid.scene)))
+      const repeatPdf=await dom.page.request.patch("/api/proofs",{
+        headers:{origin},data:{id:pdfRecord.id,approve:true}
+      })
+      expect(repeatPdf.status()).toBe(409)
+      const erasedPdf=await sub.page.request.delete("/api/proofs",{
+        headers:{origin},data:{id:pdfRecord.id}
+      })
+      expect(erasedPdf.status()).toBe(200)
+      expect((await dom.page.request.get(href!)).status()).toBe(404)
       await tab(dom.page,"Contracts")
       await dom.page.getByRole("button",{name:/My contracts/}).click()
     }
