@@ -1,5 +1,5 @@
 import {PDFDocument,StandardFonts,rgb,type PDFFont,type PDFPage} from "pdf-lib"
-import {contractModuleSchema,type ContractModule} from "@/lib/contract-rules"
+import {contractModuleSchema,type ContractModule} from "./contract-rules.ts"
 import {z} from "zod"
 
 const modulesSchema=z.array(contractModuleSchema).min(1).max(8)
