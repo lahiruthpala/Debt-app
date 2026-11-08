@@ -79,6 +79,11 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     expect(created).toBeTruthy()
     templateId=created.id
     expect(created.modules).toHaveLength(5)
+    expect(list.officialCount).toBe(20)
+    expect(list.library.filter((x:{is_official?:boolean})=>x.is_official)).toHaveLength(20)
+    const findOfficial=await json(dom.page,"/api/contracts?view=templates&q=Labyrinth")
+    expect(findOfficial.library.filter((x:{is_official?:boolean})=>x.is_official).map((x:{title:string})=>x.title))
+      .toEqual(["Labyrinth of Clues"])
 
     // Another account can discover the public template but cannot change it.
     const discovered=await json(sub.page,"/api/contracts?view=templates&q="+stamp)
@@ -184,6 +189,38 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       headers:{origin},data:{action:"play",sceneId:scene.scene_id,moduleId:wheel.id}
     })
     expect(ended.status()).toBe(409)
+
+    // Curated contract recipes are visible to every signed-in user, copyable,
+    // and can be proposed and played after the previous contract ends.
+    await dom.page.reload()
+    await tab(dom.page,"Game room")
+    await dom.page.getByRole("button",{name:/Discover templates/}).click()
+    await dom.page.getByRole("button",{name:/Official \(20\)/}).click()
+    await expect(dom.page.locator(".contract-template.official-template")).toHaveCount(20)
+    await expect(dom.page.getByText("Velvet Roulette")).toBeVisible()
+    await dom.page.locator(".contract-template.official-template").filter({hasText:"Velvet Roulette"})
+      .getByRole("button",{name:/Customize & play/}).click()
+    await expect(dom.page.getByLabel("Contract name")).toHaveValue("Velvet Roulette")
+    await expect(dom.page.locator(".module-editor")).toHaveCount(3)
+    await dom.page.getByRole("button",{name:/Save & propose contract/}).click()
+    await expect(dom.page.getByRole("status")).toContainText("must approve")
+    const recent=await json(dom.page,"/api/contracts?view=scenes")
+    const curatedScene=recent.scenes.find((x:{title_snapshot:string;status:string})=>
+      x.title_snapshot==="Velvet Roulette"&&x.status==="proposed")
+    expect(curatedScene).toBeTruthy()
+    await sub.page.reload()
+    await tab(sub.page,"Game room")
+    await sub.page.getByRole("button",{name:/My contracts/}).click()
+    await sub.page.locator(".scene-chip").filter({hasText:"proposed"}).click()
+    await sub.page.getByRole("button",{name:/Approve & activate contract/}).click()
+    await expect(sub.page.getByRole("status")).toContainText("Scene activated")
+    await sub.page.locator(".contract-game-card.kind-wheel").getByRole("button",{name:/Spin the wheel/}).click()
+    await expect(sub.page.getByRole("status")).toContainText("Velvet Wheel")
+    const curatedGame=await json(sub.page,"/api/contracts?view=scene&id="+curatedScene.scene_id)
+    expect(curatedGame.actions.length).toBeGreaterThanOrEqual(1)
+    sub.page.once("dialog",dialog=>dialog.accept())
+    await sub.page.getByRole("button",{name:/End contract/}).click()
+    await expect(sub.page.getByRole("status")).toContainText("Scene ended")
   }finally{
     // Never leave a synthetic published template in public discovery.
     if(templateId)await dom.page.request.post("/api/contracts",{
