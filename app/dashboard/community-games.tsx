@@ -1,17 +1,20 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
+import { ContractBuilder } from "./contract-builder"
+import type { EngineConfig } from "@/lib/contract-modules"
 
 type Game = {
   id:string;author_id:string;author_handle:string;title:string;summary:string;
-  category:string;rules:string;opening_prompt:string;published:boolean;play_count:number
+  category:string;rules:string;opening_prompt:string;engine_config:EngineConfig;published:boolean;play_count:number
 }
 type GameSession = {id:string;scene_id:string;game_id:string;title_snapshot:string;state:string;created_at:string;started_by_handle:string}
 type Turn = {id:string;content:string;created_at:string;actor_id:string;actor_handle:string}
 type SessionDetails = {session:{id:string;state:string;scene_id:string;title_snapshot:string;rules_snapshot:string;prompt_snapshot:string;started_by_handle:string};turns:Turn[]}
 export type GameScene = {id:string;status:string;connection_state:string;other_handle:string}
 type Feedback = (type:"pending"|"success"|"error",message:string)=>void
-const blank = {title:"",summary:"",category:"Story",rules:"",openingPrompt:""}
+type Draft={title:string;summary:string;category:string;rules:string;openingPrompt:string;engineConfig:EngineConfig}
+const emptyDraft=():Draft=>({title:"",summary:"",category:"Story",rules:"",openingPrompt:"",engineConfig:{modules:[]}})
 async function queryGame(view:string,params:Record<string,string>={}) {
   const response=await fetch("/api/games?"+new URLSearchParams({view,...params}),{cache:"no-store"})
   const data=await response.json().catch(()=>({}))
@@ -38,7 +41,7 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
   const [sessionId,setSessionId]=useState("")
   const [details,setDetails]=useState<SessionDetails|null>(null)
   const [move,setMove]=useState("")
-  const [draft,setDraft]=useState(blank)
+  const [draft,setDraft]=useState<Draft>(emptyDraft)
   const [editing,setEditing]=useState<Game|null>(null)
   const [working,setWorking]=useState(false)
   const activeScenes=scenes.filter(s=>s.status==="active" && s.connection_state==="active")
@@ -87,11 +90,11 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
     finally{setWorking(false)}
   }
   function openEditor(game:Game) {
-    setDraft({title:game.title,summary:game.summary,category:game.category,rules:game.rules,openingPrompt:game.opening_prompt})
+    setDraft({title:game.title,summary:game.summary,category:game.category,rules:game.rules,openingPrompt:game.opening_prompt,engineConfig:game.engine_config??{modules:[]}})
     setEditing(game)
     setPanel("mine")
   }
-  function clearEditor() {setEditing(null);setDraft(blank)}
+  function clearEditor() {setEditing(null);setDraft(emptyDraft())}
   async function save(publish:boolean) {
     if(!draft.title.trim()||!draft.summary.trim()||!draft.rules.trim()||!draft.category.trim()) {
       onNotify("error","Complete the title, description, category and rules.");return
@@ -126,8 +129,8 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
   return <section className="community-studio" aria-label="Community games">
     <div className="community-hero">
       <div><span className="eyebrow">NEW · COMMUNITY GAME STUDIO</span>
-        <h2>Make the rules. Share the story.</h2>
-        <p>Create original games with your own rules, publish them for everyone to discover, and play together inside a consented connection. Every move is a shared story entry—no scripts or automatic ledger changes.</p>
+        <h2>Design the rules. Play the consequences.</h2>
+        <p>Build interactive debt games with configurable wheels, dice, check-ins and fictional rewards or penalties. Publish reusable templates and choose them when proposing your next consensual debt contract. Original free-form stories still work.</p>
       </div>
       <button className="btn btn-red" onClick={()=>{clearEditor();setPanel("mine")}}>＋ Create a game</button>
     </div>
@@ -157,6 +160,7 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
             <div className="eyebrow">COMMUNITY RULEBOOK · {selectedGame.category.toUpperCase()}</div>
             <h3>{selectedGame.title}</h3><p className="muted">{selectedGame.summary}</p>
             <h4>How to play</h4><div className="rule-copy">{selectedGame.rules}</div>
+            <div className="mechanic-preview"><h4>Interactive contract mechanics</h4>{!selectedGame.engine_config?.modules?.length?<p>Story mode only; no ledger game modifiers.</p>:selectedGame.engine_config.modules.map(m=><p key={m.type}>✧ {m.type==="wheel"?"Custom fortune wheel":m.type==="dice"?"Dice duel":"Timed check-ins"}</p>)}<small>To use these mechanics, choose this published template when proposing a new scene under Connections. Both partners must approve the contract first.</small></div>
             {selectedGame.opening_prompt && <><h4>Opening prompt</h4><p className="rule-copy">{selectedGame.opening_prompt}</p></>}
             <label className="community-scene-label">PLAY WITH A CONNECTION
               <select aria-label="Play in connection" value={sceneChoice} onChange={e=>setSceneChoice(e.target.value)}>
@@ -179,13 +183,14 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
       <div className="dash-card game-composer">
         <div className="eyebrow">YOUR IMAGINATION / YOUR RULES</div>
         <h3>{editing?"Edit your game":"Build a new game"}</h3>
-        <p className="muted">Describe any kind of text-based game, challenge, or collaborative story. Your rules guide the players; both can write free-form turns.</p>
+        <p className="muted">Design a game other users can publish and reuse in debt contracts. Combine automated server-verified mechanics with optional human-written rules and roleplay.</p>
         <form className="form-stack" onSubmit={e=>{e.preventDefault();void save(true)}}>
           <label>GAME TITLE<input required minLength={3} maxLength={80} value={draft.title} placeholder="A secret at midnight" onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
           <label>SHORT DESCRIPTION<input required minLength={10} maxLength={240} value={draft.summary} placeholder="What makes your game interesting?" onChange={e=>setDraft({...draft,summary:e.target.value})}/></label>
           <label>CATEGORY<input required minLength={3} maxLength={30} value={draft.category} placeholder="Story, mystery, strategy…" onChange={e=>setDraft({...draft,category:e.target.value})}/></label>
           <label>RULES AND HOW TO PLAY<textarea required minLength={20} maxLength={4000} rows={7} value={draft.rules} placeholder="How do players take turns? What choices can they make? How do they win or end the game?" onChange={e=>setDraft({...draft,rules:e.target.value})}/></label>
           <label>OPENING PROMPT (OPTIONAL)<textarea maxLength={1000} rows={3} value={draft.openingPrompt} placeholder="A starting situation or question for your partner…" onChange={e=>setDraft({...draft,openingPrompt:e.target.value})}/></label>
+          <ContractBuilder value={draft.engineConfig} onChange={engineConfig=>setDraft({...draft,engineConfig})}/>
           <div className="composer-actions"><button className="btn btn-outline" type="button" disabled={working} onClick={()=>void save(false)}>Save draft</button><button className="btn btn-red" type="submit" disabled={working}>{editing?"Save & publish changes":"Publish to Discover ↗"}</button>{editing && <button className="btn btn-quiet" type="button" onClick={clearEditor}>Cancel editing</button>}</div>
         </form>
       </div>
