@@ -1,11 +1,11 @@
 "use client"
 import {useEffect,useRef,useState,type FormEvent} from "react"
-import {maxProofBytes,type ProofKind,type ProofStatus} from "@/lib/proof-rules"
+import {isAllowedProofType,maxProofBytes,maxPaymentPdfBytes,paymentPdfType,type ProofKind,type ProofStatus} from "@/lib/proof-rules"
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Proof={
  id:string;scene_id:string;kind:ProofKind;module_id:string|null;claim_id:string|null;
- challenge_id:string|null;amount:number|null;lock_request_id:string|null;note:string;status:ProofStatus;created_at:string;
+ challenge_id:string|null;amount:number|null;content_type:string;lock_request_id:string|null;note:string;status:ProofStatus;created_at:string;
  reviewed_at:string|null;review_note:string|null;deleted_at:string|null;submitter_handle:string;
  reviewer_handle:string|null;submitter_id:string
 }
@@ -36,8 +36,12 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
    event.preventDefault()
    if(working||!file||!confirmed)return
    if(invalidPayment){onNotify("error","Enter an amount between 1 and 100,000 simulated credits.");return}
-   if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>maxProofBytes){
-     onNotify("error","Choose a JPEG, PNG or WebP photo smaller than 3 MB.");return
+   const pdf=kind==="payment"&&file.type===paymentPdfType
+   const limit=pdf?maxPaymentPdfBytes:maxProofBytes
+   if(!isAllowedProofType(kind,file.type)||file.size<1||file.size>limit){
+     onNotify("error",kind==="payment"?
+       "Choose a JPEG, PNG or WebP image (max 3 MB), or a PDF (max 4 MB).":
+       "Choose a JPEG, PNG or WebP photo smaller than 3 MB.");return
    }
    setWorking(true)
    onNotify("pending","Working on your private upload…")
@@ -54,12 +58,12 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
      if(amount!==undefined)payload.set("amount",String(amount))
      const response=await fetch("/api/proofs",{method:"POST",body:payload})
      const data=await response.json().catch(()=>({}))
-     if(!response.ok)throw Error(data.error||"Image upload failed")
+     if(!response.ok)throw Error(data.error||"Proof upload failed")
      setFile(null);setNote("");setConfirmed(false)
      if(inputRef.current)inputRef.current.value=""
      announceRefresh()
      await onUploaded?.()
-     onNotify("success",data.message||"Photo submitted for review")
+     onNotify("success",data.message||"Proof submitted for review")
    }catch(error){onNotify("error",message(error))}
    finally{setWorking(false)}
  }
@@ -68,9 +72,9 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
      <input aria-label="Simulated credit amount" type="number" min={1} max={100000} step={1} required
        value={amount??""} onChange={e=>onAmountChange?.(Number(e.target.value))}/>
    </label>}
-   <label className="proof-input-label">{kind==="payment"?"Attach payment proof image":kind==="lock"?"Upload non-explicit lock photo":"Attach optional private photo"}
-     <input ref={inputRef} aria-label={"Proof image for "+titles[kind]} type="file" required={kind==="payment"}
-       accept="image/jpeg,image/png,image/webp"
+   <label className="proof-input-label">{kind==="payment"?"Attach payment proof (image or PDF)":kind==="lock"?"Upload non-explicit lock photo":"Attach optional private photo"}
+     <input ref={inputRef} aria-label={kind==="payment"?"Payment proof file (image or PDF)":"Proof image for "+titles[kind]} type="file" required={kind==="payment"}
+       accept={kind==="payment"?"image/jpeg,image/png,image/webp,application/pdf,.pdf":"image/jpeg,image/png,image/webp"}
        onChange={e=>setFile(e.target.files?.[0]||null)}/>
    </label>
    {!hideNote&&<label className="proof-input-label">Private note (optional)
@@ -79,10 +83,10 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
    </label>}
    <label className="check-label proof-check">
      <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>
-     <span>I consent to sharing a non-explicit photo with this connected partner. No intimate body photos, identifying documents or location details.</span>
+     <span>I consent to sharing this non-explicit {kind==="payment"?"image or PDF":"photo"} with my connected partner. No intimate images, identifying documents, banking credentials or location details.</span>
    </label>
    <div className="proof-uploader-footer">
-     <span>JPEG / PNG / WebP · maximum 3 MB · stored privately, metadata removed</span>
+     <span>{kind==="payment"?"JPEG / PNG / WebP · max 3 MB; PDF · max 4 MB · private upload":"JPEG / PNG / WebP · maximum 3 MB · stored privately, metadata removed"}</span>
      <button type="submit" className="btn btn-outline" disabled={!file||!confirmed||working||!sceneId||invalidPayment}>
        {working?"Uploading…":kind==="lock"?"Upload lock photo ↗":"Submit for review ↗"}
      </button>
@@ -144,9 +148,9 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
  }
  async function erase(proof:Proof){
    if(working)return
-   if(!window.confirm("Permanently erase this photo? Settled credits and the audit record remain."))return
+   if(!window.confirm("Permanently erase this proof file? Settled credits and the audit record remain."))return
    setWorking(proof.id)
-   onNotify("pending","Working on secure image deletion…")
+   onNotify("pending","Working on secure file deletion…")
    try{
      const data=await apiProof({id:proof.id},"DELETE")
      await refresh()
@@ -159,7 +163,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
  return <section id="proof-center" className="dash-card proof-center" aria-label="Private proof review">
    <div className="proof-center-heading">
      <div><span className="eyebrow">PRIVATE · MUTUAL REVIEW</span><h3>Proof Center <span className="mini-label">{pending} PENDING</span></h3>
-       <p className="muted">Photos are visible only to the uploader and their connected partner. An approval verifies the photo; it never restricts the Sub from ending participation.</p>
+       <p className="muted">Proof files are accessible only to the uploader and their connected partner. Payment PDFs download securely; approval never restricts the Sub from ending participation.</p>
      </div>
      <button type="button" className="btn btn-quiet" disabled={loading} onClick={()=>void refresh()}>↻ Refresh</button>
    </div>
@@ -173,13 +177,19 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
        </div>
        {proof.note&&<p className="proof-note">{proof.note}</p>}
        {!proof.deleted_at && <div className="proof-media">
-         <button type="button" className="btn btn-quiet" onClick={()=>setOpened(current=>current.includes(proof.id)?
-           current.filter(x=>x!==proof.id):[...current,proof.id])}>
-           {opened.includes(proof.id)?"Hide private image":"View private image"}
-         </button>
-         {opened.includes(proof.id)&&<img loading="lazy"
-           src={"/api/proofs?view=image&id="+encodeURIComponent(proof.id)}
-           alt={"Private proof for "+titles[proof.kind]}/>}
+         {proof.kind==="payment"&&proof.content_type===paymentPdfType?
+           <a className="btn btn-outline" href={"/api/proofs?view=file&id="+encodeURIComponent(proof.id)} download="payment-proof.pdf">
+             Download private PDF
+           </a>:
+           <>
+             <button type="button" className="btn btn-quiet" onClick={()=>setOpened(current=>current.includes(proof.id)?
+               current.filter(x=>x!==proof.id):[...current,proof.id])}>
+               {opened.includes(proof.id)?"Hide private image":"View private image"}
+             </button>
+             {opened.includes(proof.id)&&<img loading="lazy"
+               src={"/api/proofs?view=image&id="+encodeURIComponent(proof.id)}
+               alt={"Private proof for "+titles[proof.kind]}/>}
+           </>}
        </div>}
        {proof.review_note&&<p className="proof-note"><b>Review:</b> {proof.review_note}</p>}
        {proof.status!=="pending"&&<small className="proof-history">Reviewed by @{proof.reviewer_handle||"partner"}
@@ -199,7 +209,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
        </div>}
        {proof.submitter_id===actorId&&!proof.deleted_at&&<button type="button"
          className="btn btn-quiet proof-erase" disabled={Boolean(working)}
-         onClick={()=>void erase(proof)}>Erase my photo</button>}
+         onClick={()=>void erase(proof)}>Erase my proof file</button>}
      </article>)}</div>}
  </section>
 }
