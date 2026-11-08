@@ -22,9 +22,9 @@ async function apiProof(input:Record<string,unknown>,method:"PATCH"|"DELETE"){
 }
 
 /** Evidence is opt-in and non-explicit. No photo can override consent or stop a scene ending. */
-export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,onAmountChange,onNotify,onUploaded}:{
+export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,onAmountChange,hideNote=false,onNotify,onUploaded}:{
  sceneId:string;kind:ProofKind;moduleId?:string;claimId?:string;challengeId?:string;amount?:number;
- onAmountChange?:(amount:number)=>void;onNotify:Feedback;onUploaded?:()=>Promise<void>|void
+ onAmountChange?:(amount:number)=>void;hideNote?:boolean;onNotify:Feedback;onUploaded?:()=>Promise<void>|void
 }){
  const [file,setFile]=useState<File|null>(null)
  const [note,setNote]=useState("")
@@ -73,10 +73,10 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
        accept="image/jpeg,image/png,image/webp"
        onChange={e=>setFile(e.target.files?.[0]||null)}/>
    </label>
-   <label className="proof-input-label">Private note (optional)
+   {!hideNote&&<label className="proof-input-label">Private note (optional)
      <input value={note} maxLength={500} placeholder="Brief context for your partner…"
        onChange={e=>setNote(e.target.value)}/>
-   </label>
+   </label>}
    <label className="check-label proof-check">
      <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>
      <span>I consent to sharing a non-explicit photo with this connected partner. No intimate body photos, identifying documents or location details.</span>
@@ -156,7 +156,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
    finally{setWorking(null)}
  }
  const pending=proofs.filter(p=>p.status==="pending"&&!p.deleted_at&&(p.kind!=="lock"||Boolean(p.lock_request_id))).length
- return <section className="dash-card proof-center" aria-label="Private proof review">
+ return <section id="proof-center" className="dash-card proof-center" aria-label="Private proof review">
    <div className="proof-center-heading">
      <div><span className="eyebrow">PRIVATE · MUTUAL REVIEW</span><h3>Proof Center <span className="mini-label">{pending} PENDING</span></h3>
        <p className="muted">Photos are visible only to the uploader and their connected partner. An approval verifies the photo; it never restricts the Sub from ending participation.</p>
@@ -192,9 +192,9 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
          </label>
          <div className="person-actions">
            <button type="button" className="btn btn-red" disabled={Boolean(working)}
-             onClick={()=>void review(proof,true)}>Approve proof</button>
+             onClick={()=>void review(proof,true)}>{proof.kind==="lock"?"Approve lock request":"Approve proof"}</button>
            <button type="button" className="btn btn-outline" disabled={Boolean(working)}
-             onClick={()=>void review(proof,false)}>Reject with reason</button>
+             onClick={()=>void review(proof,false)}>{proof.kind==="lock"?"Reject lock request":"Reject with reason"}</button>
          </div>
        </div>}
        {proof.submitter_id===actorId&&!proof.deleted_at&&<button type="button"

@@ -133,6 +133,11 @@ an open challenge. The connected Dom reviews photos in **Proof Center**.
   end the scene, or erase their private status data.
 - Direct no-photo payments are rejected by the API. Task completions retain
   their existing behavior.
+  Lock requests display a three-step progress panel (photo, request, Dom review).
+  Previously manually reported lock states remain visible but are labelled unverified
+  if no Dom-approved lock request is recorded. Historical data is not silently erased.
+  The lock card refreshes partner decisions automatically while the page is active.
+  If an older tab is open when a new release ships, the dashboard offers a refresh.
   If a photo has been attached to a task or challenge, review must happen through
   Proof Center rather than bypassing the attachment.
 - Only the uploader can erase the private Blob image. A small audit record and

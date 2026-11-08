@@ -64,7 +64,7 @@ async function approveProof(page:Page,kind:string){
   const img=card.locator("img")
   await expect(img).toBeVisible()
   await expect.poll(()=>img.evaluate(el=>(el as HTMLImageElement).naturalWidth>0),{timeout:15000}).toBe(true)
-  await card.getByRole("button",{name:"Approve proof"}).click()
+  await card.getByRole("button",{name:kind==="Lock-status proof"?"Approve lock request":"Approve proof"}).click()
   await expect(page.locator(".action-toast")).toContainText("Proof approved")
 }
 
@@ -276,12 +276,16 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await sub.page.getByRole("button",{name:/Approve & activate contract/}).click()
     await expect(sub.page.getByRole("status")).toContainText("Scene activated")
     // Lock status is proof-gated and Dom reviewed; the old direct write must fail.
+    await expect(sub.page.getByRole("button",{name:"Mark unlocked"})).toHaveCount(0)
+    await expect(sub.page.getByRole("button",{name:"Mark locked"})).toHaveCount(0)
+    await expect(sub.page.locator(".lock-progress-step")).toHaveCount(3)
+    await expect(sub.page.getByText("Start a new lock request")).toBeVisible()
     await expect(sub.page.locator(".boundary-lock")).toBeVisible()
     await expect(sub.page.locator(".boundary-permission")).toBeVisible()
     await expect(sub.page.locator(".boundary-journal")).toBeVisible()
     const beforeStatus=await json(sub.page,"/api/contracts?view=scene&id="+curatedScene.scene_id)
     const lockModule=curatedScene.modules_snapshot.find((m:{type:string})=>m.type==="lock")
-    const requestLock=sub.page.getByRole("button",{name:"Request lock",exact:true})
+    const requestLock=sub.page.getByRole("button",{name:"Request lock for Dom approval",exact:true})
     await expect(requestLock).toBeDisabled()
     const directLock=await sub.page.request.post("/api/contract-boundaries",{
       headers:{origin},data:{action:"set_lock",sceneId:curatedScene.scene_id,moduleId:lockModule.id,locked:true}
@@ -299,6 +303,8 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       await form.getByRole("button",{name:/Upload lock photo/}).click()
       await expect(sub.page.locator(".action-toast")).toContainText("Lock photo uploaded",{timeout:30000})
       await expect(requestLock).toBeEnabled()
+      await expect(sub.page.getByText("Lock photo uploaded — ready to request")).toBeVisible()
+      await expect(sub.page.locator(".lock-progress-step.is-complete")).toHaveCount(1)
       const staged=(await json(sub.page,"/api/proofs?sceneId="+curatedScene.scene_id)).proofs
         .find((p:{kind:string;status:string})=>p.kind==="lock"&&p.status==="pending")
       expect(staged.lock_request_id).toBeNull()
@@ -308,6 +314,8 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       expect(earlyReview.status()).toBe(409)
       await requestLock.click()
       await expect(sub.page.getByRole("status")).toContainText("Lock request sent")
+      await expect(sub.page.getByText("Waiting for Dom approval")).toBeVisible()
+      await expect(sub.page.locator(".lock-progress-step.is-complete")).toHaveCount(2)
       const pending=await json(sub.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)
       expect(pending.state.find((x:{module_id:string})=>x.module_id===lockModule.id)?.locked_since??null).toBeNull()
       const lockRequest=pending.requests.find((r:{kind:string;status:string})=>r.kind==="lock"&&r.status==="pending")
@@ -322,6 +330,9 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       await approveProof(dom.page,"Lock-status proof")
       await sub.page.getByRole("button",{name:"Refresh status"}).click()
       await expect(sub.page.getByRole("button",{name:"Request unlock review"})).toBeVisible()
+      await expect(sub.page.getByText("Lock status approved")).toBeVisible()
+      await expect(sub.page.locator(".lock-progress-step.is-complete")).toHaveCount(3)
+      await expect(sub.page.locator(".boundary-lock .proof-uploader")).toHaveCount(0)
       const afterLock=await json(dom.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)
       expect(afterLock.state.find((x:{module_id:string;locked_since:string|null})=>x.module_id===lockModule.id)?.locked_since).toBeTruthy()
       const lockedEvidence=(await json(sub.page,"/api/proofs?sceneId="+curatedScene.scene_id)).proofs
@@ -357,7 +368,8 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       const afterUnlock=await json(sub.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)
       expect(afterUnlock.state.find((x:{module_id:string;locked_since:string|null})=>x.module_id===lockModule.id)?.locked_since).toBeNull()
       await sub.page.getByRole("button",{name:"Refresh status"}).click()
-      await expect(sub.page.getByRole("button",{name:"Request lock",exact:true})).toBeDisabled()
+      await expect(sub.page.getByRole("button",{name:"Request lock for Dom approval",exact:true})).toBeDisabled()
+      await expect(sub.page.getByText("Start a new lock request")).toBeVisible()
     }
     await sub.page.getByRole("button",{name:"Request permission review"}).click()
     await expect(sub.page.getByRole("status")).toContainText("Request sent")

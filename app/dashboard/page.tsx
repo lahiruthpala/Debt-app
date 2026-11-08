@@ -7,6 +7,7 @@ import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
 import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
+import {UI_RELEASE} from "@/lib/ui-release"
 
 type Role = "dom" | "sub"
 type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean }
@@ -52,6 +53,7 @@ export default function Dashboard() {
   const [pf,setPf]=useState({handle:"",role:"sub" as Role,bio:"",discoverable:true,adult:false})
   const [terms,setTerms]=useState({principal:250000,monthlyRate:12,weeklyTarget:15000,lateFee:5000})
   const [credit,setCredit]=useState(15000)
+  const [updateAvailable,setUpdateAvailable]=useState(false)
   const [challengeIndex,setChallengeIndex]=useState(0)
   const [forecast,setForecast]=useState(15000)
   const refreshId=useRef(0)
@@ -68,6 +70,18 @@ export default function Dashboard() {
     return ()=>window.clearTimeout(timeout)
   },[error,message])
 
+  useEffect(()=>{
+    let alive=true
+    const check=()=>{
+      void fetch("/api/ui-release",{cache:"no-store"})
+        .then(async response=>{if(!response.ok)throw Error("Version check unavailable");return response.json()})
+        .then(data=>{if(alive&&data.release&&data.release!==UI_RELEASE)setUpdateAvailable(true)})
+        .catch(()=>{})
+    }
+    const interval=window.setInterval(check,60000)
+    window.addEventListener("focus",check)
+    return ()=>{alive=false;window.clearInterval(interval);window.removeEventListener("focus",check)}
+  },[])
   async function loadDetails(id:string) {
     try {const data=await api("scene",{id});setDetails(data)}
     catch(err){setDetails(null);setError(err instanceof Error ? err.message : "Could not load scene")}
@@ -186,6 +200,10 @@ export default function Dashboard() {
           <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":"Your identity"}</h1></div>
         <div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div>
       </div>
+      {updateAvailable&&<div className="app-update-banner">
+        <div><strong>App update available</strong><p>Refresh to get the latest contract and lock review interface.</p></div>
+        <button type="button" className="btn btn-red" onClick={()=>window.location.reload()}>Refresh app</button>
+      </div>}
       {(error || message) && <div className="feedback-layer">
         {error ? <div className="action-toast failure error-notice" role="alert">
           <span className="toast-icon" aria-hidden="true">!</span><div className="toast-copy"><small>ACTION NEEDS ATTENTION</small><p>{error}</p></div>

@@ -617,3 +617,38 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
 .contract-task{flex-wrap:wrap}
 .contract-task>.proof-inline{flex:1 0 100%}
+
+/* Private lock photo → request → Dom approval process */
+.lock-review-banner{display:flex;align-items:flex-start;gap:14px;background:#302333;border:1px solid #875c79;border-radius:13px;padding:18px 19px}
+.lock-review-banner strong{display:block;font-size:.95rem;color:#f7dce8}
+.lock-review-banner p{font-size:.77rem;color:#d7bdca;line-height:1.6;margin-top:6px}
+.lock-review-glyph{flex-shrink:0;display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:#70445d;color:#ffe3f0;font-size:1.25rem}
+.lock-review-banner.is-ready{background:#342b27;border-color:#987c52}.lock-review-banner.is-ready .lock-review-glyph{background:#60502f}
+.lock-review-banner.is-pending,.lock-review-banner.is-unlock-pending{background:#34272b;border-color:#9d704e}
+.lock-review-banner.is-locked{background:#21362d;border-color:#4d8465}
+.lock-review-banner.is-locked strong{color:#d9f5e4}.lock-review-banner.is-locked .lock-review-glyph{background:#41664f;color:#edfff1}
+.lock-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.lock-progress-step{display:flex;gap:10px;align-items:center;background:#211922;border:1px solid #50384a;border-radius:11px;padding:13px}
+.lock-progress-step>span{display:grid;place-items:center;width:30px;height:30px;flex-shrink:0;border-radius:99px;border:1px solid #826478;color:#e5c8d8;font-size:.8rem;font-weight:800}
+.lock-progress-step strong{display:block;color:#ead0df;font-size:.75rem}
+.lock-progress-step small{display:block;font-size:.64rem;color:#af95a5;margin-top:4px;line-height:1.4}
+.lock-progress-step.is-complete{border-color:#42745a;background:#21332b}
+.lock-progress-step.is-complete>span{background:#3b6c4d;border-color:#619873;color:#f1fff5}
+.lock-progress-step.is-current{border-color:#ba7c9c;background:#362337}
+.lock-progress-step.is-current>span{border-color:#d5a0bf;color:#fff}
+.lock-step-heading{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.lock-step-heading strong{font-size:.86rem;color:#f5d8e6}
+.lock-step-heading small{font-size:.69rem;color:#ba9dae}
+.lock-photo-panel{margin:0}
+.lock-primary-actions{padding:3px 0}
+.lock-primary-actions .btn{min-width:210px}
+.lock-ready-detail,.lock-dom-review{padding:15px 17px;border:1px solid #886449;background:#312721;border-radius:11px;display:flex;align-items:flex-start;flex-direction:column;gap:6px}
+.lock-ready-detail strong,.lock-dom-review strong{font-size:.84rem;color:#f3ddbe}
+.lock-ready-detail span,.lock-dom-review p{font-size:.75rem;color:#d4bca8;line-height:1.6}
+.lock-ready-detail a{font-size:.73rem;color:#f1bdd5;text-decoration:underline;margin-top:5px}
+.lock-dom-review .btn{margin-top:7px}
+.app-update-banner{border:1px solid #ab7d50;border-radius:12px;background:#352b27;color:#f4dfbb;padding:14px 17px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:15px}
+.app-update-banner strong{font-size:.88rem}.app-update-banner p{font-size:.73rem;margin-top:4px;color:#dec9b0}
+@media(max-width:720px){.lock-progress{grid-template-columns:1fr}.lock-primary-actions .btn{width:100%}.app-update-banner{flex-direction:column;align-items:stretch}}
+
+.lock-review-banner.is-legacy{background:#352926;border-color:#a47a4f}.lock-review-banner.is-legacy .lock-review-glyph{background:#795635;color:#ffe8c5}
