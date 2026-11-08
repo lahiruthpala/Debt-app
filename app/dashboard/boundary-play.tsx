@@ -9,14 +9,15 @@ type BoundaryStatus={
   release_last_at:string|null
 }
 type BoundaryRequest={
-  id:string;module_id:string;kind:"unlock"|"release"|"inspection";
+  id:string;module_id:string;kind:"lock"|"unlock"|"release"|"inspection";
   status:"pending"|"approved"|"declined"|"completed";note:string;response:string;
   created_at:string;requester_handle:string
 }
 type JournalEntry={
   id:string;module_id:string;body:string;reply:string|null;created_at:string;author_handle:string
 }
-type BoundaryData={status:string;state:BoundaryStatus[];requests:BoundaryRequest[];entries:JournalEntry[]}
+type BoundaryData={status:string;state:BoundaryStatus[];requests:BoundaryRequest[];entries:JournalEntry[];
+  readyLockProofs:{id:string;module_id:string}[]}
 const message=(error:unknown)=>error instanceof Error?error.message:"Unable to complete action"
 const daysSince=(value:string|null):string=>value?
   String(Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/86400000))):"—"
@@ -48,7 +49,9 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       .then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||"Could not load");return body})
       .then(body=>{if(live)setData(body)})
       .catch(error=>{if(live)onNotify("error",message(error))})
-    return ()=>{live=false}
+    const onProofsUpdated=()=>{if(live)void reload().catch(error=>onNotify("error",message(error)))}
+    window.addEventListener("private-proofs-updated",onProofsUpdated)
+    return ()=>{live=false;window.removeEventListener("private-proofs-updated",onProofsUpdated)}
   },[sceneId,sceneStatus,available.length])
   async function perform(payload:Record<string,unknown>){
     if(working)return
@@ -79,6 +82,8 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       </div>
       <div className="boundary-consent"><span>◈</span><strong>Consent stays active</strong>
         <small>Either partner can pause or end the contract. No exit or withdrawal penalties.</small>
+        <button className="btn btn-quiet" disabled={working}
+          onClick={()=>void reload().catch(error=>onNotify("error",message(error)))}>Refresh status</button>
         {role==="sub"&&<button className="btn btn-quiet" disabled={working} onClick={()=>{
           if(window.confirm("Erase all your private counter data, journal entries and requests from this contract? This cannot be undone.")){
             void perform({action:"erase_private_data"})
@@ -88,6 +93,9 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
     {available.map(module=>{
       const state=data?.state.find(s=>s.module_id===module.id)
       const requests=requestRows.filter(r=>r.module_id===module.id)
+      const readyLockProof=data?.readyLockProofs?.find(p=>p.module_id===module.id)
+      const pendingLock=requests.some(r=>r.kind==="lock"&&r.status==="pending")
+      const pendingUnlock=requests.some(r=>r.kind==="unlock"&&r.status==="pending")
       const isLock=module.type==="lock"
       const isPermission=module.type==="permission"
       const isJournal=module.type==="journal"
@@ -104,19 +112,23 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
             <div><small>DAYS REPORTED</small><strong>{daysSince(state?.locked_since||null)}</strong></div>
             <div><small>PLANNED DURATION</small><strong>{module.suggestedDays} days</strong></div>
           </div>
-          <p className="boundary-description">Keyholder label: <b>{module.keyholderLabel}</b>. An optional text check-in may be requested every {module.checkinHours} hours. No photo, location or device access is required.</p>
-          {role==="sub"&&<div className="boundary-actions">
-            <button className="btn btn-outline" disabled={!active||working} onClick={()=>void perform({action:"set_lock",moduleId:module.id,locked:!state?.locked_since})}>
-              {state?.locked_since?"Mark unlocked":"Mark locked"}
-            </button>
-            <button className="btn btn-red" disabled={!active||working} onClick={()=>void perform({action:"request_unlock",moduleId:module.id,note})}>Request unlock review</button>
-          </div>}
-          {role==="dom"&&<button className="btn btn-outline" disabled={!active||working} onClick={()=>void perform({action:"request_inspection",moduleId:module.id,note})}>Request private text check-in</button>}
-          {role==="sub"&&active&&Boolean(state?.locked_since)&&<div className="proof-inline">
-            <p className="boundary-footnote">You may optionally send a non-explicit lock-status image for partner verification. This never controls unlocking or ending the contract.</p>
+          <p className="boundary-description">Keyholder label: <b>{module.keyholderLabel}</b>. Planned duration: {module.suggestedDays} days. Lock status updates only after the Dom reviews a non-explicit photo. No device is controlled by this app.</p>
+          {role==="sub"&&!state?.locked_since&&active&&!pendingLock&&!readyLockProof&&<div className="proof-inline">
+            <p className="boundary-footnote">Upload a non-explicit lock photo first. Request lock stays disabled until the image is stored privately.</p>
             <ProofUploader sceneId={sceneId} kind="lock" moduleId={module.id}
               onNotify={onNotify} onUploaded={async()=>{await reload();await onChanged()}}/>
           </div>}
+          {role==="sub"&&<div className="boundary-actions">
+            {!state?.locked_since&&<button className="btn btn-red" disabled={!active||working||!readyLockProof||pendingLock}
+              onClick={()=>void perform({action:"request_lock",moduleId:module.id,proofId:readyLockProof?.id,note})}>Request lock</button>}
+            {Boolean(state?.locked_since)&&<button className="btn btn-red" disabled={!active||working||pendingUnlock}
+              onClick={()=>void perform({action:"request_unlock",moduleId:module.id,note})}>Request unlock review</button>}
+          </div>}
+          {role==="sub"&&readyLockProof&&!pendingLock&&<p className="boundary-footnote">Photo uploaded. Select Request lock to ask your Dom to approve it.</p>}
+          {pendingLock&&<p className="boundary-footnote">Lock request awaiting Dom photo approval. Status remains unlocked until then.</p>}
+          {pendingUnlock&&<p className="boundary-footnote">Unlock request awaiting Dom decision. You may physically unlock or end the scene at any time.</p>}
+          {role==="dom"&&<button className="btn btn-outline" disabled={!active||working}
+            onClick={()=>void perform({action:"request_inspection",moduleId:module.id,note})}>Request private text check-in</button>}
           <p className="boundary-footnote">Self-reported status is voluntary. You can unlock or stop participation without permission or a debt charge.</p>
         </div>}
         {isPermission&&<div className="boundary-content">
@@ -155,7 +167,7 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
                 <small>by @{request.requester_handle} · {new Date(request.created_at).toLocaleString("en-GB")}</small>
                 {request.note&&<p>{request.note}</p>}{request.response&&<p>Reply: {request.response}</p>}
               </div>
-              {request.status==="pending"&&role==="dom"&&request.kind!=="inspection"&&
+              {request.status==="pending"&&role==="dom"&&request.kind!=="inspection"&&request.kind!=="lock"&&
                 <div className="boundary-review">
                   <input aria-label={"Reply to "+request.id} maxLength={500} placeholder="Optional response"
                     value={requestResponses[request.id]||""} onChange={e=>setRequestResponses({...requestResponses,[request.id]:e.target.value})}/>
@@ -166,6 +178,8 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
                     action:"review_request",requestId:request.id,approve:false,response:requestResponses[request.id]||""
                   })}>Decline</button>
                 </div>}
+              {request.status==="pending"&&request.kind==="lock"&&role==="dom"&&
+                <p className="boundary-footnote">Review the linked image in Proof Center to approve or reject this lock.</p>}
               {request.status==="pending"&&role==="sub"&&request.kind==="inspection"&&
                 <div className="boundary-review">
                   <input aria-label={"Inspection response "+request.id} maxLength={500}

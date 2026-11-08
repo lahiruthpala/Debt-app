@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS contract_task_claims (
 CREATE INDEX IF NOT EXISTS contract_claims_scene_idx
   ON contract_task_claims(scene_id,created_at DESC);
 
--- Consensual, text-only private contract status. No media uploads or hardware control.
+-- Consensual private contract status. Images are private and no hardware is controlled.
 CREATE TABLE IF NOT EXISTS contract_boundary_state (
   scene_id uuid NOT NULL REFERENCES scene_contracts(scene_id) ON DELETE CASCADE,
   module_id uuid NOT NULL,
@@ -243,7 +243,7 @@ CREATE TABLE IF NOT EXISTS contract_boundary_requests (
   module_id uuid NOT NULL,
   requester_id text NOT NULL REFERENCES profiles(id),
   reviewed_by text REFERENCES profiles(id),
-  kind varchar(16) NOT NULL CHECK (kind IN ('unlock','release','inspection')),
+  kind varchar(16) NOT NULL CHECK (kind IN ('lock','unlock','release','inspection')),
   status varchar(12) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','approved','declined','completed')),
   note varchar(500) NOT NULL DEFAULT '',
@@ -251,6 +251,10 @@ CREATE TABLE IF NOT EXISTS contract_boundary_requests (
   created_at timestamptz NOT NULL DEFAULT now(),
   reviewed_at timestamptz
 );
+-- Upgrade the original request constraint for existing installations.
+ALTER TABLE contract_boundary_requests DROP CONSTRAINT IF EXISTS contract_boundary_requests_kind_check;
+ALTER TABLE contract_boundary_requests ADD CONSTRAINT contract_boundary_requests_kind_check
+  CHECK (kind IN ('lock','unlock','release','inspection'));
 CREATE INDEX IF NOT EXISTS contract_boundary_requests_scene_idx
   ON contract_boundary_requests(scene_id,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS contract_boundary_one_open_request
@@ -312,6 +316,11 @@ CREATE TABLE IF NOT EXISTS proof_submissions (
     OR (kind='challenge' AND challenge_id IS NOT NULL AND module_id IS NULL AND claim_id IS NULL AND amount IS NULL)
   )
 );
+-- Lock images are uploaded first, then linked to an explicit pending request.
+ALTER TABLE proof_submissions ADD COLUMN IF NOT EXISTS lock_request_id uuid
+  REFERENCES contract_boundary_requests(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS proof_one_lock_request_idx
+  ON proof_submissions(lock_request_id) WHERE lock_request_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS proof_scene_queue_idx ON proof_submissions(scene_id,status,created_at DESC);
 CREATE INDEX IF NOT EXISTS proof_submitter_idx ON proof_submissions(submitter_id,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS proof_one_pending_per_claim_idx

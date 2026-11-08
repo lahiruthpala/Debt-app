@@ -77,16 +77,20 @@ export async function GET(req:Request){
     const sceneId=checked(uuid,new URL(req.url).searchParams.get("sceneId"))
     db=await getPool().connect()
     const {scene,modules}=await access(db,sceneId,player.id)
-    const [state,requests,entries]=await Promise.all([
+    const [state,requests,entries,readyLockProofs]=await Promise.all([
       db.query("SELECT module_id,locked_since,permission_status,release_last_at,updated_at FROM contract_boundary_state WHERE scene_id=$1",[sceneId]),
       db.query("SELECT r.id,r.module_id,r.kind,r.status,r.note,r.response,r.created_at,r.reviewed_at,p.handle AS requester_handle "+
         "FROM contract_boundary_requests r JOIN profiles p ON p.id=r.requester_id "+
         "WHERE r.scene_id=$1 ORDER BY r.created_at DESC LIMIT 50",[sceneId]),
       db.query("SELECT j.id,j.module_id,j.body,j.reply,j.created_at,j.replied_at,p.handle AS author_handle "+
         "FROM contract_private_journal j JOIN profiles p ON p.id=j.author_id "+
-        "WHERE j.scene_id=$1 ORDER BY j.created_at DESC LIMIT 40",[sceneId])
+        "WHERE j.scene_id=$1 ORDER BY j.created_at DESC LIMIT 40",[sceneId]),
+      db.query("SELECT id,module_id FROM proof_submissions WHERE scene_id=$1 AND submitter_id=$2 "+
+        "AND kind='lock' AND status='pending' AND lock_request_id IS NULL "+
+        "AND deleted_at IS NULL AND blob_path IS NOT NULL ORDER BY created_at DESC",[sceneId,player.id])
     ])
     return json({status:scene.status,state:state.rows,requests:requests.rows,entries:entries.rows,
+      readyLockProofs:readyLockProofs.rows,
       modules:modules.filter(m=>["lock","permission","journal","calendar"].includes(m.type))})
   }catch(e){return failure(e)}finally{db?.release()}
 }
@@ -97,7 +101,7 @@ export async function POST(req:Request){
     const player=await identity(req)
     const body=await req.json().catch(()=>{throw new BoundaryError(400,"Invalid JSON")})
     const action=checked(z.enum([
-      "set_lock","set_permission","record_release","request_unlock","request_release",
+      "set_lock","request_lock","set_permission","record_release","request_unlock","request_release",
       "request_inspection","review_request","respond_inspection","journal","reply_journal","erase_private_data","delete_journal"
     ]),body?.action)
     const sceneId=checked(uuid,body.sceneId)
@@ -107,6 +111,8 @@ export async function POST(req:Request){
     // Personal data can be removed by its owner even after a scene has ended.
     if(action==="erase_private_data"){
       if(player.role!=="sub")throw new BoundaryError(403,"Only the Sub may erase their private counter data")
+      await db.query("UPDATE proof_submissions SET status='rejected' "+
+        "WHERE scene_id=$1 AND submitter_id=$2 AND kind='lock' AND status='pending'",[sceneId,player.id])
       await db.query("DELETE FROM contract_boundary_state WHERE scene_id=$1",[sceneId])
       await db.query("DELETE FROM contract_private_journal WHERE scene_id=$1 AND author_id=$2",[sceneId,player.id])
       await db.query("DELETE FROM contract_boundary_requests WHERE scene_id=$1 AND requester_id=$2",[sceneId,player.id])
@@ -138,12 +144,16 @@ export async function POST(req:Request){
       if(action==="review_request"){
         domOnly()
         if(request.kind==="inspection")throw new BoundaryError(400,"Only the Sub can respond to an inspection")
+        if(request.kind==="lock")throw new BoundaryError(409,"Review the linked lock photo in Proof Center")
         const approved=checked(z.boolean(),body.approve)
         const response=checked(noteSchema,body.response??"")
         const status=approved?"approved":"declined"
         await db.query("UPDATE contract_boundary_requests SET status=$1,response=$2,reviewed_by=$3,reviewed_at=now() WHERE id=$4",
           [status,response,player.id,requestId])
         if(approved&&request.kind==="unlock"){
+          const current=await db.query("SELECT locked_since FROM contract_boundary_state WHERE scene_id=$1 AND module_id=$2",
+            [sceneId,moduleId])
+          if(!current.rows[0]?.locked_since)throw new BoundaryError(409,"Lock state is no longer active")
           await db.query("INSERT INTO contract_boundary_state(scene_id,module_id,locked_since) VALUES($1,$2,NULL) "+
             "ON CONFLICT(scene_id,module_id) DO UPDATE SET locked_since=NULL,updated_at=now()",[sceneId,moduleId])
         }else if(approved&&request.kind==="release"){
@@ -176,13 +186,29 @@ export async function POST(req:Request){
     }else{
       moduleId=checked(uuid,body.moduleId)
       if(action==="set_lock"){
+        throw new BoundaryError(409,"Direct lock status changes are disabled. Upload a photo and request lock or unlock review.")
+      }else if(action==="request_lock"){
         subOnly();requireModule(modules,moduleId,"lock")
-        const locked=checked(z.boolean(),body.locked)
-        await db.query("INSERT INTO contract_boundary_state(scene_id,module_id,locked_since) VALUES($1,$2,CASE WHEN $3 THEN now() ELSE NULL END) "+
-          "ON CONFLICT(scene_id,module_id) DO UPDATE SET locked_since=CASE WHEN $3 THEN COALESCE(contract_boundary_state.locked_since,now()) ELSE NULL END,updated_at=now()",
-          [sceneId,moduleId,locked])
-        await writeAudit(db,sceneId,moduleId,player.id,"lock_status",{locked})
-        message=locked?"Lock status recorded.":"Lock status cleared. No penalty applied."
+        const proofId=checked(uuid,body.proofId)
+        const note=checked(noteSchema,body.note??"")
+        const state=await db.query("SELECT locked_since FROM contract_boundary_state WHERE scene_id=$1 AND module_id=$2",[sceneId,moduleId])
+        if(state.rows[0]?.locked_since)throw new BoundaryError(409,"This module is already marked locked")
+        const pending=await db.query("SELECT id FROM contract_boundary_requests WHERE scene_id=$1 AND module_id=$2 AND kind='lock' AND status='pending'",[sceneId,moduleId])
+        if(pending.rowCount)throw new BoundaryError(409,"A lock request already awaits Dom review")
+        const {rows:images}=await db.query("SELECT id FROM proof_submissions WHERE id=$1 AND scene_id=$2 AND module_id=$3 "+
+          "AND submitter_id=$4 AND kind='lock' AND status='pending' AND lock_request_id IS NULL "+
+          "AND deleted_at IS NULL AND blob_path IS NOT NULL FOR UPDATE",[proofId,sceneId,moduleId,player.id])
+        if(!images.length)throw new BoundaryError(409,"Upload a valid lock photo before requesting a lock")
+        const {rows:recent}=await db.query<{count:number}>(
+          "SELECT count(*)::int AS count FROM contract_boundary_requests "+
+          "WHERE scene_id=$1 AND requester_id=$2 AND created_at>now()-interval '24 hours'",[sceneId,player.id])
+        if(recent[0].count>=12)throw new BoundaryError(429,"Daily request limit reached")
+        const requestId=randomUUID()
+        await db.query("INSERT INTO contract_boundary_requests(id,scene_id,module_id,requester_id,kind,note) "+
+          "VALUES($1,$2,$3,$4,'lock',$5)",[requestId,sceneId,moduleId,player.id,note])
+        await db.query("UPDATE proof_submissions SET lock_request_id=$1 WHERE id=$2",[requestId,proofId])
+        await writeAudit(db,sceneId,moduleId,player.id,"boundary_req",{kind:"lock",requestId})
+        message="Lock request sent with photo. Status remains unlocked until Dom approval."
       }else if(action==="set_permission"){
         domOnly();requireModule(modules,moduleId,"permission")
         const status=checked(z.enum(["restricted","limited","allowed"]),body.status)
@@ -203,6 +229,10 @@ export async function POST(req:Request){
         if(kind==="inspection"){domOnly();requireModule(modules,moduleId,"lock")}
         else {subOnly();requireModule(modules,moduleId,kind==="unlock"?"lock":"permission")}
         const note=checked(noteSchema,body.note??"")
+        if(kind==="unlock"){
+          const state=await db.query("SELECT locked_since FROM contract_boundary_state WHERE scene_id=$1 AND module_id=$2",[sceneId,moduleId])
+          if(!state.rows[0]?.locked_since)throw new BoundaryError(409,"Only an active reported lock can be requested for unlock review")
+        }
         const {rows:recent}=await db.query<{count:number}>(
           "SELECT count(*)::int AS count FROM contract_boundary_requests "+
           "WHERE scene_id=$1 AND requester_id=$2 AND created_at>now()-interval '24 hours'",[sceneId,player.id])
