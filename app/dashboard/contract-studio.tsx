@@ -29,11 +29,14 @@ const templates={
   dice:():ContractModule=>({id:id(),type:"dice",name:"Dice Duel",sides:6,stake:500,cooldownHours:24}),
   wheel:():ContractModule=>({id:id(),type:"wheel",name:"Fortune Wheel",cooldownHours:24,outcomes:
     [{label:"Lucky credit",delta:-2000},{label:"Extra penalty",delta:1000},{label:"No change",delta:0}]}),
-  checkin:():ContractModule=>({id:id(),type:"checkin",name:"Daily Check-in",reward:1000,cooldownHours:24}),
+  checkin:():ContractModule=>({id:id(),type:"checkin",name:"Daily Check-in",reward:1000,latePenalty:0,cooldownHours:24}),
+  random:():ContractModule=>({id:id(),type:"random",name:"Surprise Events",cooldownHours:24,
+    outcomes:[{label:"Surprise credit",delta:-1500,weight:3},
+      {label:"Unexpected penalty",delta:750,weight:2},{label:"No change",delta:0,weight:5}]}),
   tasks:():ContractModule=>({id:id(),type:"tasks",name:"Verified Challenges",
     tasks:[{id:id(),label:"Create a plan for the shared fictional goal",reward:1000}]})
 }
-const icons={dice:"⚄",wheel:"✺",checkin:"◷",tasks:"☑"}
+const icons={dice:"⚄",wheel:"✺",random:"✧",checkin:"◷",tasks:"☑"}
 async function call(view:string,params:Record<string,string>={}){
   const res=await fetch("/api/contracts?"+new URLSearchParams({view,...params}),{cache:"no-store"})
   const data=await res.json().catch(()=>({}))
@@ -151,7 +154,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
     <div className="contract-hero">
       <div><div className="eyebrow">INTERACTIVE CONTRACT WORKSHOP · NEW</div>
         <h2>Build a debt game that actually plays.</h2>
-        <p>Choose your terms, combine configurable game modules, publish your design, and propose it to a partner. Every credit or penalty is calculated by the server in your agreed fictional ledger.</p>
+        <p>Set imaginary debt terms, combine configurable dice, wheels, weighted random events, check-ins and tasks, then publish or propose to a partner. The server verifies every outcome in your mutually agreed contract.</p>
       </div>
       <div className="contract-hero-glyph" aria-hidden="true">⚄<span>✺</span></div>
     </div>
@@ -182,10 +185,10 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
         <div className="eyebrow contract-step">03 / ADD INTERACTIVE GAME MODULES</div>
         <p className="muted">Combine up to eight independent modules. Configure your chances, rewards, penalties, and cooldowns.</p>
         <div className="module-palette">
-          {(["dice","wheel","checkin","tasks"] as const).map(kind=><button type="button" key={kind}
+          {(["dice","wheel","random","checkin","tasks"] as const).map(kind=><button type="button" key={kind}
             disabled={definition.modules.length>=8} onClick={()=>setDefinition({...definition,
               modules:[...definition.modules,templates[kind]()]})}>
-            <span>{icons[kind]}</span><b>{kind==="dice"?"Dice duel":kind==="wheel"?"Fortune wheel":kind==="checkin"?"Check-ins":"Verified tasks"}</b><small>＋ Add</small>
+            <span>{icons[kind]}</span><b>{kind==="dice"?"Dice duel":kind==="wheel"?"Fortune wheel":kind==="random"?"Random events":kind==="checkin"?"Check-ins":"Verified tasks"}</b><small>＋ Add</small>
           </button>)}
         </div>
         <div className="module-editor-list">{definition.modules.map((module,index)=><div key={module.id} className="module-editor">
@@ -207,23 +210,33 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
               value={module.stake} onChange={e=>updateModule(module.id,{stake:Number(e.target.value)})}/></label>
             <p className="contract-hint">Roll against the server. Your higher result removes fictional debt; a lower result adds a penalty.</p>
           </div>}
-          {module.type==="wheel" && <div className="wheel-editor">
-            <p className="contract-hint">Each segment has an equal chance. Negative amounts give credits; positive amounts add penalties.</p>
+          {(module.type==="wheel"||module.type==="random") && <div className="wheel-editor">
+            <p className="contract-hint">{module.type==="random"?"Give each outcome a relative weight (1–20). A higher weight means it will happen more often.": "Each segment has an equal chance."} Negative amounts give credits; positive amounts add penalties.</p>
             {module.outcomes.map((outcome,j)=><div key={j} className="wheel-outcome">
               <input aria-label={"Wheel segment "+index+" label "+j} value={outcome.label} maxLength={40}
                 onChange={e=>updateModule(module.id,{outcomes:module.outcomes.map((x,k)=>k===j?{...x,label:e.target.value}:x)})}/>
               <input aria-label={"Wheel segment "+index+" amount "+j} type="number" min={-10000} max={10000}
                 value={outcome.delta} onChange={e=>updateModule(module.id,{outcomes:module.outcomes.map((x,k)=>k===j?{...x,delta:Number(e.target.value)}:x)})}/>
+              {module.type==="random"&&<input aria-label={"Event weight "+index+" option "+j} type="number" min={1} max={20}
+                value={outcome.weight} onChange={e=>updateModule(module.id,{outcomes:module.outcomes.map((x,k)=>k===j?{...x,weight:Number(e.target.value)}:x)})}/>}
               <button type="button" aria-label={"Delete wheel segment "+j} disabled={module.outcomes.length<=2}
                 onClick={()=>updateModule(module.id,{outcomes:module.outcomes.filter((_,k)=>k!==j)})}>×</button>
             </div>)}
             <button type="button" className="btn btn-quiet" disabled={module.outcomes.length>=12}
-              onClick={()=>updateModule(module.id,{outcomes:[...module.outcomes,{label:"New segment",delta:0}]})}>＋ Add wheel segment</button>
+              onClick={()=>updateModule(module.id,{outcomes:[...module.outcomes,{label:"New segment",delta:0,...(module.type==="random"?{weight:1}:{})}]})}>＋ Add outcome</button>
           </div>}
-          {module.type==="checkin" && <label className="contract-label">CREDIT PER CHECK-IN
-            <input aria-label={"Checkin reward "+index} type="number" min={0} max={5000} value={module.reward}
-              onChange={e=>updateModule(module.id,{reward:Number(e.target.value)})}/>
-          </label>}
+          {module.type==="checkin" && <div className="module-fields">
+            <label>CREDIT PER CHECK-IN
+              <input aria-label={"Checkin reward "+index} type="number" min={0} max={5000} value={module.reward}
+                onChange={e=>updateModule(module.id,{reward:Number(e.target.value)})}/>
+            </label>
+            <label>AGREED LATE CHECK-IN PENALTY
+              <input aria-label={"Checkin late penalty "+index} type="number" min={0} max={5000}
+                value={module.latePenalty??0}
+                onChange={e=>updateModule(module.id,{latePenalty:Number(e.target.value)})}/>
+            </label>
+            <p className="contract-hint">Optional: when the Sub manually checks in after more than twice the agreed interval, one fictional late penalty applies. No automatic charges or unattended collection.</p>
+          </div>}
           {module.type==="tasks" && <div className="task-editor">
             <p className="contract-hint">The Sub submits a completion claim; the Dom approves before credits are awarded. One claim per task.</p>
             {module.tasks.map((task,j)=><div key={task.id} className="task-builder-row">
@@ -324,16 +337,16 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
                 <div><small>{module.type.toUpperCase()}</small><h3>{module.name}</h3></div></div>
               {module.type==="dice"&&<><p>Roll a d{module.sides} against the server. The difference changes the fictional balance by {money(module.stake)} per point.</p>
                 <div className="dice-display"><div><small>YOU</small><strong>{outcome?.details.playerRoll===undefined?"?":String(outcome.details.playerRoll)}</strong></div><span>VS</span><div><small>SERVER</small><strong>{outcome?.details.botRoll===undefined?"?":String(outcome.details.botRoll)}</strong></div></div></>}
-              {module.type==="wheel"&&<><p>Spin a wheel with {module.outcomes.length} equally likely custom outcomes.</p>
+              {(module.type==="wheel"||module.type==="random")&&<><p>{module.type==="wheel"?"Spin a wheel with equally likely outcomes.":"Trigger a weighted surprise event. Higher-weight outcomes are more likely."} {module.outcomes.length} custom outcomes.</p>
                 <div className={"wheel-live "+(outcome?"spinning":"")} style={{background:"conic-gradient("+module.outcomes.map((_,i)=>{
                   const colors=["#b84e69","#e0a970","#7b729d","#6d9a8b"]
                   return colors[i%colors.length]+" "+(i*100/module.outcomes.length)+"% "+((i+1)*100/module.outcomes.length)+"%"
                 }).join(",")+")"}}><span>✦</span></div>
-                <div className="wheel-summary">{module.outcomes.map((o,i)=><span key={i}>{o.label}: {o.delta>0?"+":""}{money(o.delta)}</span>)}</div></>}
-              {module.type==="checkin"&&<><p>Complete a check-in to earn {money(module.reward)} in fictional debt credits. Repeat after the agreed cooldown.</p>
+                <div className="wheel-summary">{module.outcomes.map((o,i)=><span key={i}>{o.label}: {o.delta>0?"+":""}{money(o.delta)}{module.type==="random"?" · weight "+o.weight:""}</span>)}</div></>}
+              {module.type==="checkin"&&<><p>Complete a check-in to earn {money(module.reward)} in fictional debt credits. Repeat after the agreed cooldown.{module.latePenalty?" A late check-in can add "+money(module.latePenalty)+" in agreed fictional penalties.":""}</p>
                 <div className="contract-checkin-glyph">◷ <span>{module.cooldownHours}h interval</span></div></>}
               {module.type!=="tasks" && <><button className="btn btn-red full" disabled={!isPlayable||busy||cooling||(module.type==="checkin"&&role!=="sub")}
-                onClick={()=>void play(module.id)}>{module.type==="dice"?"⚄ Roll dice":module.type==="wheel"?"✺ Spin the wheel":"✓ Check in"}</button>
+                onClick={()=>void play(module.id)}>{module.type==="dice"?"⚄ Roll dice":module.type==="wheel"?"✺ Spin the wheel":module.type==="random"?"✧ Reveal event":"✓ Check in"}</button>
                 <small className="contract-availability">{cooling?"Cooldown · available later":!isPlayable?"Activate contract to play":cooldown===0?"Available (daily safety limit applies)":"Available · cooldown "+cooldown+"h"}</small></>}
               {outcome&&<div className="contract-result">
                 <b>{outcome.delta<0?"− "+money(Math.abs(outcome.delta))+" credit":outcome.delta>0?"+ "+money(outcome.delta)+" penalty":"No balance change"}</b>
