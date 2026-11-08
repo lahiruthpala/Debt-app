@@ -285,14 +285,8 @@ export async function POST(req: Request) {
           } else {
             if (scene.status !== "active" || scene.connection_state !== "active") throw new ApiError(409, "Scene must be active")
             if (operation === "payment") {
-              if (!sub) throw new ApiError(403, "Only the sub can record a simulated payment")
-              const amount = parse(z.number().int().min(1).max(100000), body.amount)
-              const next = applyCredit(scene, amount)
-              if (!next.credited) throw new ApiError(409, "The ledger is already clear")
-              await db.query("UPDATE scenes SET principal=$1,interest=$2,penalties=$3,updated_at=now() WHERE id=$4",
-                [next.principal,next.interest,next.penalties,sceneId])
-              await event(db, sceneId, actor.id, "payment", -next.credited, "Fictional payment credit applied (no money transferred)")
-              message = "Applied " + next.credited.toLocaleString() + " simulated credits."
+              if (!sub) throw new ApiError(403, "Only the sub can submit a simulated payment")
+              throw new ApiError(409, "Simulated payments require photo proof and Dom approval. Submit evidence from Overview.")
             } else if (operation === "late_fee") {
               if (!dom) throw new ApiError(403, "Only the Dom can apply a scheduled fictional late fee")
               if (scene.last_fee_at && Date.now() - new Date(scene.last_fee_at).getTime() < 7*86400000) throw new ApiError(429, "Late fee can be used at most once every seven days")

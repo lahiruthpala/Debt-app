@@ -248,12 +248,12 @@ export default function Dashboard() {
               <div className="dash-card">
                 <h3>Simulated payments <span className="mini-label">NO MONEY SENT</span></h3>
                 <p className="muted">Credits clear penalties first, then interest, then principal. The ledger is imaginary.</p>
-                <div className="input-with-button"><input type="number" min={1} max={100000} value={credit} onChange={e=>setCredit(Number(e.target.value))} disabled={!active||ownRole!=="sub"}/>
-                  <button className="btn btn-red" disabled={busy||!active||ownRole!=="sub"} onClick={()=>sceneAction("payment",credit)}>Apply credit</button></div>
                 {ownRole==="sub"&&active&&<div className="proof-inline">
-                  <p className="muted">Applying a credit without a photo records it immediately. Alternatively, attach optional private proof and wait for the connected Dom to approve before the fictional balance changes.</p>
-                  <ProofUploader sceneId={selected} kind="payment" amount={credit} onNotify={notify} onUploaded={refresh}/>
+                  <p className="muted">Enter an amount and attach payment proof. Your connected Dom must approve the submission before any fictional credits reduce the balance.</p>
+                  <ProofUploader sceneId={selected} kind="payment" amount={credit} onAmountChange={setCredit} onNotify={notify} onUploaded={refresh}/>
                 </div>}
+                {ownRole==="sub"&&!active&&<p className="muted">Activate the scene to submit a payment for review.</p>}
+                {ownRole==="dom"&&active&&<p className="muted">Review submitted payment evidence in Proof Center to apply its fictional credits.</p>}
                 {ownRole==="dom" && active && <div className="action-inline"><button disabled={busy} className="btn btn-quiet" onClick={()=>sceneAction("late_fee")}>+ Agreed late fee</button><button disabled={busy} className="btn btn-quiet" onClick={()=>sceneAction("interest")}>+ Monthly interest</button></div>}
               </div>
             </div>

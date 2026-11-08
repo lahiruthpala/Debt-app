@@ -84,7 +84,7 @@ is unavailable, check this endpoint first. The CI database is **not** the produc
 - Accepted connection is required before a scene can be proposed; a separate sub approval is required to activate it.
 - All scene writes are server-authenticated, validated, and scoped to participants. Ledger mutations use row locks and transactions.
 - Blocking ends active scenes and prevents future invitations from that account. Scene termination never requires the other party's approval.
-- All balances are **fictional**. Pressing "payment" only records imaginary credits and cannot send money.
+- All balances are **fictional**. Payment credits require non-explicit photo evidence and Dom approval; no money is sent or transferred.
 - Public game content is user-authored text, displayed as escaped text, not executable code. Game sessions are restricted to approved scene participants; a paused scene rejects new moves. Publication changes are creator-only and game reports are recorded for review.
 - Community games currently support flexible human-written rules and manually entered turns, not arbitrary executable rule engines, automatic scoring, or real-time chat delivery. Players can refresh turns to see their partner's updates.
 - This prototype uses **self-declared** adult status, not independently verified age; it also does not yet provide email-based password recovery or automated account deletion. Those are important before promoting the service broadly.
@@ -99,7 +99,7 @@ Go to **Game room → Contract builder**, configure fictional starting terms, th
 
 Templates can be published, discovered and adapted by anyone with an adult profile. Only Dom accounts propose a configured contract to an active connection; the Sub must explicitly approve it. Paused and ended scenes reject module actions. All amounts are imaginary and no real money moves.
 
-Module cooldowns use server time; zero cooldown is available for dice/wheels but a 40-action-per-day safety cap still applies. Charges are capped, all outcomes are server-generated, and actions are logged. No arbitrary user code, external payments, background punishments, photo verification or public visitor control is implemented. This is not a legal debt contract or financial service.
+Module cooldowns use server time; zero cooldown is available for dice/wheels but a 40-action-per-day safety cap still applies. Charges are capped, all outcomes are server-generated, and actions are logged. No arbitrary user code, external payments, background punishments or public visitor control is implemented. This is not a legal debt contract or financial service.
 
 ## Private photo proofs
 
@@ -110,8 +110,9 @@ contain sensitive personal information. Do not place Blob credentials in client 
 
 From **Contracts → My contracts**, a Sub may optionally upload non-explicit JPEG,
 PNG or WebP evidence for a self-reported lock status or a pending verified task.
-From **Overview**, a Sub may attach an image to a simulated payment instead of
-immediately applying credits. From **Game room**, a Sub may attach evidence for
+From **Overview**, a Sub enters the simulated credit amount and attaches a
+non-explicit payment proof image. The Dom must approve the submission before
+the fictional balance changes; there is no direct Apply credit button. From **Game room**, a Sub may attach evidence for
 an open challenge. The connected Dom reviews photos in **Proof Center**.
 
 - Only approved, active scene participants can upload. Only the uploader and
@@ -125,7 +126,8 @@ an open challenge. The connected Dom reviews photos in **Proof Center**.
   corresponding fictional credit **once**; rejecting an upload applies nothing.
   Lock evidence verifies self-reported status only, never imposes penalties or
   removes any user's right to unlock, pause, or end a scene.
-- Direct no-photo payments and task completions retain their existing behavior.
+- Direct no-photo payments are rejected by the API. Task completions retain
+  their existing behavior.
   If a photo has been attached to a task or challenge, review must happen through
   Proof Center rather than bypassing the attachment.
 - Only the uploader can erase the private Blob image. A small audit record and

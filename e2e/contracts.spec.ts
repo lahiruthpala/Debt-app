@@ -210,13 +210,15 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     if(liveProofs){
       await tab(sub.page,"Overview")
       const beforePayment=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
-      await uploadProof(sub.page,'.dash-card:has-text("Simulated payments") .proof-uploader')
+      const paymentForm=sub.page.locator('.dash-card:has-text("Simulated payments") .proof-uploader')
+       await paymentForm.getByLabel("Simulated credit amount").fill("12000")
+       await uploadProof(sub.page,'.dash-card:has-text("Simulated payments") .proof-uploader')
       const waiting=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
       expect(total(waiting.scene)).toBe(total(beforePayment.scene))
       await tab(dom.page,"Overview")
       await approveProof(dom.page,"Simulated payment proof")
       const paid=await json(dom.page,"/api/contracts?view=scene&id="+scene.scene_id)
-      expect(total(paid.scene)).toBeLessThan(total(beforePayment.scene))
+      expect(total(paid.scene)).toBe(total(beforePayment.scene)-Math.min(12000,total(beforePayment.scene)))
       await tab(dom.page,"Contracts")
       await dom.page.getByRole("button",{name:/My contracts/}).click()
     }
