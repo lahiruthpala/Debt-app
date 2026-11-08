@@ -208,7 +208,7 @@ export async function POST(req:Request){
     if(action==="play"){
       const moduleId=parse(uuid,body.moduleId)
       const module=modules.find(m=>m.id===moduleId)
-      if(!module||module.type==="tasks")throw new ContractError(404,"Interactive game module not available")
+      if(!module||module.type==="tasks"||module.type==="lock"||module.type==="permission"||module.type==="journal"||module.type==="calendar")throw new ContractError(404,"Interactive game module not available")
       if(module.type==="checkin" && actor.role!=="sub")
         throw new ContractError(403,"Only the Sub can check in for the reward")
       const {rows:count}=await db.query<{count:number}>(
