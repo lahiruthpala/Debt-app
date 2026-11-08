@@ -77,7 +77,12 @@ export default function BoundaryPlay({sceneId,modules,role,onNotify,onChanged}:{
         <p>Track agreed statuses, private requests and creative journals. These are self-reported fictional agreement tools, not physical enforcement.</p>
       </div>
       <div className="boundary-consent"><span>◈</span><strong>Consent stays active</strong>
-        <small>Either partner can pause or end the contract. No exit or withdrawal penalties.</small></div>
+        <small>Either partner can pause or end the contract. No exit or withdrawal penalties.</small>
+        {role==="sub"&&<button className="btn btn-quiet" disabled={working} onClick={()=>{
+          if(window.confirm("Erase all your private counter data, journal entries and requests from this contract? This cannot be undone.")){
+            void perform({action:"erase_private_data"})
+          }
+        }}>Erase my private data</button>}</div>
     </header>
     {available.map(module=>{
       const state=data?.state.find(s=>s.module_id===module.id)
@@ -183,6 +188,9 @@ export default function BoundaryPlay({sceneId,modules,role,onNotify,onChanged}:{
             {entryRows.filter(e=>e.module_id===module.id).map(entry=><div className="boundary-entry" key={entry.id}>
               <small>@{entry.author_handle} · {new Date(entry.created_at).toLocaleString("en-GB")}</small>
               <p>{entry.body}</p>{entry.reply&&<blockquote>Partner reply: {entry.reply}</blockquote>}
+              {role==="sub"&&<button className="btn btn-quiet" disabled={working} onClick={()=>{
+                if(window.confirm("Delete this private journal entry?"))void perform({action:"delete_journal",entryId:entry.id})
+              }}>Delete my entry</button>}
               {!entry.reply&&role==="dom"&&<div className="boundary-review">
                 <input aria-label={"Journal reply "+entry.id} value={replies[entry.id]||""}
                   onChange={e=>setReplies({...replies,[entry.id]:e.target.value})}

@@ -98,12 +98,32 @@ export async function POST(req:Request){
     const body=await req.json().catch(()=>{throw new BoundaryError(400,"Invalid JSON")})
     const action=checked(z.enum([
       "set_lock","set_permission","record_release","request_unlock","request_release",
-      "request_inspection","review_request","respond_inspection","journal","reply_journal"
+      "request_inspection","review_request","respond_inspection","journal","reply_journal","erase_private_data","delete_journal"
     ]),body?.action)
     const sceneId=checked(uuid,body.sceneId)
     db=await getPool().connect()
     await db.query("BEGIN");transaction=true
     const {scene,modules}=await access(db,sceneId,player.id,true)
+    // Personal data can be removed by its owner even after a scene has ended.
+    if(action==="erase_private_data"){
+      if(player.role!=="sub")throw new BoundaryError(403,"Only the Sub may erase their private counter data")
+      await db.query("DELETE FROM contract_boundary_state WHERE scene_id=$1",[sceneId])
+      await db.query("DELETE FROM contract_private_journal WHERE scene_id=$1 AND author_id=$2",[sceneId,player.id])
+      await db.query("DELETE FROM contract_boundary_requests WHERE scene_id=$1 AND requester_id=$2",[sceneId,player.id])
+      await db.query("UPDATE contract_boundary_requests SET response='' WHERE scene_id=$1 AND reviewed_by=$2",[sceneId,player.id])
+      await db.query("COMMIT");transaction=false
+      return json({message:"Private self-reports and journal entries erased. Audit metadata remains."})
+    }
+    if(action==="delete_journal"){
+      if(player.role!=="sub")throw new BoundaryError(403,"Only the entry author may delete their private journal")
+      const entryId=checked(uuid,body.entryId)
+      const {rowCount}=await db.query(
+        "DELETE FROM contract_private_journal WHERE id=$1 AND scene_id=$2 AND author_id=$3",
+        [entryId,sceneId,player.id])
+      if(!rowCount)throw new BoundaryError(404,"Your journal entry was not found")
+      await db.query("COMMIT");transaction=false
+      return json({message:"Journal entry deleted. Audit metadata remains."})
+    }
     active(scene)
     const subOnly=()=>{if(player.role!=="sub")throw new BoundaryError(403,"Only the Sub may make this self-report")}
     const domOnly=()=>{if(player.role!=="dom")throw new BoundaryError(403,"Only the Dom may review this request")}
