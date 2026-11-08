@@ -85,7 +85,13 @@ async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:Proo
       throw new ProofError(404,"Lock-status module not available for this scene")
     const state=await db.query("SELECT locked_since FROM contract_boundary_state WHERE scene_id=$1 AND module_id=$2",
       [scene.id,moduleId])
-    if(!state.rows[0]?.locked_since)throw new ProofError(409,"Report locked status before submitting optional photo evidence")
+    if(state.rows[0]?.locked_since)throw new ProofError(409,"This module is already marked locked")
+    const pending=await db.query("SELECT id FROM proof_submissions WHERE scene_id=$1 AND module_id=$2 "+
+      "AND kind='lock' AND status='pending' AND deleted_at IS NULL LIMIT 1",[scene.id,moduleId])
+    if(pending.rowCount)throw new ProofError(409,"Use or erase the existing pending lock photo before uploading another")
+    const request=await db.query("SELECT id FROM contract_boundary_requests WHERE scene_id=$1 AND module_id=$2 "+
+      "AND kind='lock' AND status='pending' LIMIT 1",[scene.id,moduleId])
+    if(request.rowCount)throw new ProofError(409,"A lock request already awaits review")
   }
 }
 function failed(error:unknown){
@@ -96,11 +102,11 @@ function failed(error:unknown){
 }
 type ProofRow={
  id:string;scene_id:string;submitter_id:string;kind:ProofKind;module_id:string|null;
- claim_id:string|null;challenge_id:string|null;amount:number|null;blob_path:string|null;status:ProofStatus;deleted_at:string|null
+ claim_id:string|null;challenge_id:string|null;amount:number|null;blob_path:string|null;lock_request_id:string|null;status:ProofStatus;deleted_at:string|null
 }
 async function findProof(db:PoolClient,id:string,userId:string,lock=false):Promise<ProofRow>{
   const {rows}=await db.query(
-    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.blob_path,p.status,p.deleted_at "+
+    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.blob_path,p.lock_request_id,p.status,p.deleted_at "+
     "FROM proof_submissions p JOIN scenes s ON s.id=p.scene_id "+
     "JOIN connections c ON c.id=s.connection_id "+
     "WHERE p.id=$1 AND (c.sender_id=$2 OR c.recipient_id=$2) "+(lock?"FOR UPDATE OF p":""),
@@ -143,7 +149,7 @@ export async function GET(req:Request){
         throw new ProofError(403,"This connection is no longer active")
       const {rows}=await db.query(
         "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.note,p.status,"+
-        "p.created_at,p.reviewed_at,p.review_note,p.deleted_at,u.handle AS submitter_handle,"+
+        "p.created_at,p.reviewed_at,p.review_note,p.deleted_at,p.lock_request_id,u.handle AS submitter_handle,"+
         "r.handle AS reviewer_handle,p.submitter_id "+
         "FROM proof_submissions p JOIN profiles u ON u.id=p.submitter_id "+
         "LEFT JOIN profiles r ON r.id=p.reviewer_id WHERE p.scene_id=$1 "+
@@ -221,7 +227,9 @@ export async function POST(req:Request){
       [proofId,sceneId,actor.id,kind,moduleId,claimId,challengeId,amount,note,uploaded,data.length])
     await db.query("COMMIT");transaction=false
     inserted=true
-    return json({id:proofId,message:"Private proof submitted. Your connected partner can review it."},201)
+    return json({id:proofId,message:kind==="lock"?
+      "Lock photo uploaded. Select Request lock to send it for Dom approval.":
+      "Private proof submitted. Your connected partner can review it."},201)
   }catch(error){
     if(db&&transaction)await db.query("ROLLBACK").catch(()=>{})
     // Best-effort cleanup for files uploaded before a failed database insert.
@@ -302,6 +310,21 @@ export async function PATCH(req:Request){
       )
     }
     if(proof.kind==="lock"){
+      if(!proof.lock_request_id)throw new ProofError(409,"The Sub must submit a lock request before photo review")
+      const {rows:requests}=await db.query(
+        "SELECT id,status FROM contract_boundary_requests WHERE id=$1 AND scene_id=$2 "+
+        "AND module_id=$3 AND requester_id=$4 AND kind='lock' FOR UPDATE",
+        [proof.lock_request_id,scene.id,proof.module_id,proof.submitter_id])
+      if(!requests.length||requests[0].status!=="pending")throw new ProofError(409,"Lock request is no longer pending")
+      if(approve){
+        const {rows:state}=await db.query("SELECT locked_since FROM contract_boundary_state WHERE scene_id=$1 AND module_id=$2",
+          [scene.id,proof.module_id])
+        if(state[0]?.locked_since)throw new ProofError(409,"Lock is already marked active")
+        await db.query("INSERT INTO contract_boundary_state(scene_id,module_id,locked_since) VALUES($1,$2,now()) "+
+          "ON CONFLICT(scene_id,module_id) DO UPDATE SET locked_since=now(),updated_at=now()",[scene.id,proof.module_id])
+      }
+      await db.query("UPDATE contract_boundary_requests SET status=$1,response=$2,reviewed_by=$3,reviewed_at=now() WHERE id=$4",
+        [approve?"approved":"declined",note,actor.id,proof.lock_request_id])
       await db.query(
         "INSERT INTO contract_action_log(id,scene_id,module_id,actor_id,action,delta,details) "+
         "VALUES($1,$2,$3,$4,'proof_review',0,$5)",
@@ -333,8 +356,13 @@ export async function DELETE(req:Request){
     if(proof.submitter_id!==actor.id)throw new ProofError(403,"Only the uploader can erase the image")
     if(proof.deleted_at||!proof.blob_path)throw new ProofError(409,"Image is already erased")
     await del(proof.blob_path)
+    if(proof.kind==="lock"&&proof.lock_request_id&&proof.status==="pending"){
+      await db.query("UPDATE contract_boundary_requests SET status='declined',response='Photo withdrawn by the Sub',reviewed_at=now() "+
+        "WHERE id=$1 AND status='pending'",[proof.lock_request_id])
+    }
     await db.query(
-      "UPDATE proof_submissions SET blob_path=NULL,deleted_at=now() WHERE id=$1",[id])
+      "UPDATE proof_submissions SET blob_path=NULL,deleted_at=now(),"+
+      "status=CASE WHEN kind='lock' AND status='pending' THEN 'rejected' ELSE status END WHERE id=$1",[id])
     await db.query("COMMIT");transaction=false
     return json({message:"Your private image was erased. The audit record and any settled credits remain."})
   }catch(error){
