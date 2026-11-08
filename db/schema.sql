@@ -191,9 +191,13 @@ CREATE TABLE IF NOT EXISTS scene_contracts (
   author_id text NOT NULL REFERENCES profiles(id),
   title_snapshot varchar(80) NOT NULL,
   description_snapshot varchar(320) NOT NULL,
+  category_snapshot varchar(30) NOT NULL DEFAULT 'Custom',
   modules_snapshot jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Preserve a contract's category when the source template is later edited or deleted.
+ALTER TABLE scene_contracts ADD COLUMN IF NOT EXISTS category_snapshot varchar(30) NOT NULL DEFAULT 'Custom';
 
 CREATE TABLE IF NOT EXISTS contract_action_log (
   id uuid PRIMARY KEY,
