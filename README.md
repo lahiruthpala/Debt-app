@@ -212,3 +212,19 @@ Any discoverable member can be previewed. When their extended showcase is off,
 the preview returns only their existing public handle, role and account bio.
 Private likes, dislikes, dedication, boundaries, statistics and activity are
 never exposed. The public profile route /u/{handle} uses the same privacy rules.
+
+## Predefined likes/dislikes and Discover matching
+
+Under **My profile → Personal showcase**, likes and dislikes are selected from
+a fixed, searchable, categorized catalog. Users cannot create arbitrary labels,
+and the same label cannot be both liked and disliked. The catalog covers
+communication, games, consensual dynamics, and lifestyle interests. Previously
+stored free-text labels outside the catalog are ignored when displaying choices;
+members can reselect from the available catalog and save.
+
+Discover has a **Match by likes** filter using the same preset labels. Select
+up to eight labels; results must match **all** selected labels. Free-text
+handle/bio search can be combined with the filters. Results show only public
+likes from adult members who have enabled both discoverability and their
+showcase; private or unpublished interests cannot be used to match members.
+The API rejects unknown labels and uses a JSONB GIN index for lookup.

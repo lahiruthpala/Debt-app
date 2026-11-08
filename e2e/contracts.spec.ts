@@ -110,8 +110,12 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await expect(sub.page.getByLabel("DISPLAY NAME")).toBeVisible()
     await sub.page.getByLabel("DISPLAY NAME").fill("Thoughtful Partner")
     await sub.page.getByLabel("PROFILE HEADLINE").fill("Creative challenges and mutual respect")
-    await sub.page.getByLabel("LIKES / INTERESTS (COMMA-SEPARATED)").fill("Puzzle games, Communication")
-    await sub.page.getByLabel("DISLIKES (COMMA-SEPARATED)").fill("Pressure, Unclear rules")
+    await sub.page.getByRole("button",{name:"Like Puzzle games",exact:true}).click()
+    await sub.page.getByRole("button",{name:"Like Communication",exact:true}).click()
+    await sub.page.getByRole("button",{name:"Dislike Pressure",exact:true}).click()
+    await sub.page.getByRole("button",{name:"Dislike Unclear rules",exact:true}).click()
+    await expect(sub.page.getByRole("button",{name:"Like Puzzle games",exact:true})).toHaveAttribute("aria-pressed","true")
+    await expect(sub.page.getByRole("button",{name:"Dislike Pressure",exact:true})).toHaveAttribute("aria-pressed","true")
     await sub.page.getByLabel("DEDICATION / APPROACH").fill("I value consistent check-ins and clear consent.")
     await sub.page.getByLabel("BOUNDARIES & EXPECTATIONS").fill("Either person can pause or end at any time.")
     await sub.page.getByRole("checkbox",{name:/Show my profile details to other signed-in adult members/}).check()
@@ -131,9 +135,23 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     expect(showcase.activity).toEqual([])
     expect(JSON.stringify(showcase)).not.toContain("e2e-"+sub.handle+"@example.invalid")
     const invalidProfile=await sub.page.request.post("/api/showcase",{
-      headers:{origin},data:{...showcase.profile,likes:["x".repeat(50)]}
+      headers:{origin},data:{...showcase.profile,likes:["Custom surprise label"]}
     })
     expect(invalidProfile.status()).toBe(400)
+    const conflicting=await sub.page.request.post("/api/showcase",{
+      headers:{origin},data:{...showcase.profile,likes:["Pressure"],dislikes:["Pressure"]}
+    })
+    expect(conflicting.status()).toBe(400)
+    const invalidFilter=await dom.page.request.get("/api/studio?view=discover&likes="+
+      encodeURIComponent(JSON.stringify(["Custom surprise label"])))
+    expect(invalidFilter.status()).toBe(400)
+    const matchingFilter=await dom.page.request.get("/api/studio?view=discover&likes="+
+      encodeURIComponent(JSON.stringify(["Puzzle games","Communication"])))
+    expect(matchingFilter.status()).toBe(200)
+    expect((await matchingFilter.json()).profiles.some((p:{handle:string})=>p.handle===sub.handle)).toBe(true)
+    const nonMatching=await dom.page.request.get("/api/studio?view=discover&likes="+
+      encodeURIComponent(JSON.stringify(["Music"])))
+    expect((await nonMatching.json()).profiles.some((p:{handle:string})=>p.handle===sub.handle)).toBe(false)
     await dom.page.goto("/u/"+encodeURIComponent(sub.handle))
     await expect(dom.page.getByRole("heading",{name:"Thoughtful Partner"})).toBeVisible()
     await expect(dom.page.getByText("Puzzle games")).toBeVisible()
@@ -149,6 +167,12 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       if(await profileResult.isVisible())break
       await dom.page.waitForTimeout(1000)
     }
+    await expect(profileResult).toBeVisible({timeout:15000})
+    // Discover filters match only the member's published, predefined likes.
+    await dom.page.getByRole("button",{name:"Filter by Music"}).click()
+    await expect(profileResult).toHaveCount(0,{timeout:15000})
+    await dom.page.getByRole("button",{name:"Filter by Music"}).click()
+    await dom.page.getByRole("button",{name:"Filter by Puzzle games"}).click()
     await expect(profileResult).toBeVisible({timeout:15000})
     await expect(profileResult.getByRole("button",{name:"View profile"})).toBeVisible()
     await expect(profileResult.getByText("Puzzle games")).toBeVisible()
