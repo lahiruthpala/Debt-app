@@ -53,3 +53,20 @@ test("user-defined weighted events obey server caps",()=>{
   assert.equal(contractDefinitionSchema.safeParse(base).success,true)
   assert.equal(contractDefinitionSchema.safeParse({...base,modules:[{...base.modules[0],outcomes:[{label:"Test",delta:0,weight:0},{label:"Other",delta:0,weight:1}]}]}).success,false)
 })
+
+test("private status modules validate consent-forward boundaries and caps",()=>{
+  const id=n=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0")
+  const modules=[
+    {id:id(1),type:"lock",name:"Voluntary keyholder",suggestedDays:30,checkinHours:24,keyholderLabel:"Chosen partner"},
+    {id:id(2),type:"permission",name:"Permission status",initialStatus:"restricted",reminderHours:24},
+    {id:id(3),type:"journal",name:"Private reflection",prompt:"Reflect on the shared story in a few lines."},
+    {id:id(4),type:"calendar",name:"Shared calendar",days:[1,3,5],startHour:18,endHour:22}
+  ]
+  const base={title:"Private fantasy agreement",description:"Status tracking and voluntary agreement.",category:"Ritual",
+    terms:{principal:10000,monthlyRate:0,weeklyTarget:300,lateFee:0},modules}
+  assert.equal(contractDefinitionSchema.safeParse(base).success,true)
+  assert.equal(contractDefinitionSchema.safeParse({...base,modules:[{...modules[0],suggestedDays:91}]}).success,false)
+  assert.equal(contractDefinitionSchema.safeParse({...base,modules:[{...modules[1],initialStatus:"unrestricted forever"}]}).success,false)
+  assert.equal(contractDefinitionSchema.safeParse({...base,modules:[{...modules[3],days:[]}]}).success,false)
+  assert.equal(contractDefinitionSchema.safeParse({...base,modules:[{...modules[2],prompt:"x"}]}).success,false)
+})

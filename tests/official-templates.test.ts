@@ -12,6 +12,7 @@ test("exactly twenty official debt contracts validate and have stable unique ide
     assert.equal(item.published,true)
     assert.equal(contractDefinitionSchema.safeParse(item).success,true,item.title)
     assert.ok(item.modules.length>=2 && item.modules.length<=8,item.title)
+    assert.ok(item.modules.some(m=>["lock","permission","journal","calendar"].includes(m.type)),item.title)
     assert.equal(new Set(item.modules.map(m=>m.id)).size,item.modules.length)
     for(const module of item.modules){
       if(module.type==="tasks")assert.equal(new Set(module.tasks.map(task=>task.id)).size,module.tasks.length)
