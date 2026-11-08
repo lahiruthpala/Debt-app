@@ -34,7 +34,7 @@ export function isPresetInterest(value:string):boolean {
 }
 export function normalizeInterests(input:unknown):string[]{
   if(!Array.isArray(input))return []
-  return [...new Set(input.filter((x):x is string=>typeof x==="string"&&isPresetInterest(x)))].slice(0,MAX_PROFILE_LABELS)
+  return Array.from(new Set(input.filter((x):x is string=>typeof x==="string"&&isPresetInterest(x)))).slice(0,MAX_PROFILE_LABELS)
 }
 
 export const showcaseSchema=z.object({
