@@ -17,6 +17,7 @@ test("only an active connected Dom can review pending non-deleted submissions",(
 test("approved task and payment proofs have distinct ledger outcomes; lock has none",()=>{
   assert.equal(proofReviewOutcome("payment",true),"apply_payment")
   assert.equal(proofReviewOutcome("task",true),"approve_task")
+  assert.equal(proofReviewOutcome("challenge",true),"approve_challenge")
   assert.equal(proofReviewOutcome("lock",true),"none")
   assert.equal(proofReviewOutcome("payment",false),"none")
 })

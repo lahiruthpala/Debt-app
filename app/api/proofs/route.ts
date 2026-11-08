@@ -119,7 +119,7 @@ export async function GET(req:Request){
       try{
         const proof=await findProof(db,id,actor.id)
         const scene=await sceneFor(db,proof.scene_id,actor.id)
-        if(scene.connection_state!=="active"||proof.deleted_at||!proof.blob_path)
+        if((scene.connection_state!=="active"&&proof.submitter_id!==actor.id)||proof.deleted_at||!proof.blob_path)
           throw new ProofError(404,"Image is no longer available")
         path=proof.blob_path
       }finally{db.release()}
@@ -137,15 +137,19 @@ export async function GET(req:Request){
     const db=await getPool().connect()
     try{
       const scene=await sceneFor(db,sceneId,actor.id)
-      if(scene.connection_state!=="active")throw new ProofError(403,"This connection is not active")
+      // After disconnection, uploaders retain access to their own images for erasure.
+      // The former partner loses access immediately.
+      if(scene.connection_state!=="active"&&actor.role!=="sub")
+        throw new ProofError(403,"This connection is no longer active")
       const {rows}=await db.query(
         "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.note,p.status,"+
         "p.created_at,p.reviewed_at,p.review_note,p.deleted_at,u.handle AS submitter_handle,"+
         "r.handle AS reviewer_handle,p.submitter_id "+
         "FROM proof_submissions p JOIN profiles u ON u.id=p.submitter_id "+
         "LEFT JOIN profiles r ON r.id=p.reviewer_id WHERE p.scene_id=$1 "+
+        (scene.connection_state==="active"?"":"AND p.submitter_id=$2 ")+
         "ORDER BY p.created_at DESC LIMIT 100",
-        [sceneId])
+        scene.connection_state==="active"?[sceneId]:[sceneId,actor.id])
       return json({proofs:rows})
     }finally{db.release()}
   }catch(error){return failed(error)}
@@ -188,6 +192,8 @@ export async function POST(req:Request){
     const source=Buffer.from(await file.arrayBuffer())
     const image=sharp(source,{limitInputPixels:20_000_000})
     const metadata=await image.metadata().catch(()=>{throw new ProofError(400,"Image could not be decoded")})
+    const expectedFormat:Record<string,string>={"image/jpeg":"jpeg","image/png":"png","image/webp":"webp"}
+    if(metadata.format!==expectedFormat[file.type])throw new ProofError(400,"Image format does not match the uploaded file type")
     if(!["jpeg","png","webp"].includes(metadata.format||""))
       throw new ProofError(400,"The file is not a supported image")
     const data=await image.rotate().resize(1600,1600,{fit:"inside",withoutEnlargement:true})

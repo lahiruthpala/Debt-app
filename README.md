@@ -100,3 +100,38 @@ Go to **Game room → Contract builder**, configure fictional starting terms, th
 Templates can be published, discovered and adapted by anyone with an adult profile. Only Dom accounts propose a configured contract to an active connection; the Sub must explicitly approve it. Paused and ended scenes reject module actions. All amounts are imaginary and no real money moves.
 
 Module cooldowns use server time; zero cooldown is available for dice/wheels but a 40-action-per-day safety cap still applies. Charges are capped, all outcomes are server-generated, and actions are logged. No arbitrary user code, external payments, background punishments, photo verification or public visitor control is implemented. This is not a legal debt contract or financial service.
+
+## Private photo proofs
+
+Connect a **Private** Vercel Blob store to this project. The store must provide
+`BLOB_READ_WRITE_TOKEN` or project-scoped Vercel Blob OIDC access at runtime.
+**A public Blob store is intentionally unsupported** because proof images may
+contain sensitive personal information. Do not place Blob credentials in client code.
+
+From **Contracts → My contracts**, a Sub may optionally upload non-explicit JPEG,
+PNG or WebP evidence for a self-reported lock status or a pending verified task.
+From **Overview**, a Sub may attach an image to a simulated payment instead of
+immediately applying credits. From **Game room**, a Sub may attach evidence for
+an open challenge. The connected Dom reviews photos in **Proof Center**.
+
+- Only approved, active scene participants can upload. Only the uploader and
+  connected partner may view the image; ex-partners lose access. Uploaders retain
+  access to delete their own photos after ending a connection.
+- Each image is limited to 3 MB, decoded and re-encoded as WebP to remove
+  image metadata; there are daily and pending-submission rate limits.
+- The Sub confirms consent and that the photo is non-explicit. Do not upload
+  intimate images, IDs, address details, or images of anyone without permission.
+- Approval of a photo-backed task, challenge, or simulated payment applies the
+  corresponding fictional credit **once**; rejecting an upload applies nothing.
+  Lock evidence verifies self-reported status only, never imposes penalties or
+  removes any user's right to unlock, pause, or end a scene.
+- Direct no-photo payments and task completions retain their existing behavior.
+  If a photo has been attached to a task or challenge, review must happen through
+  Proof Center rather than bypassing the attachment.
+- Only the uploader can erase the private Blob image. A small audit record and
+  any settled fictional ledger event remain, without the image's Blob pathname.
+
+The API never returns a raw Blob URL; images are streamed through an
+authenticated, no-cache endpoint. The server upload is deliberately capped
+below Vercel Functions' request-size limit. If the store was created as
+**Public**, create/connect a **Private** store before using this feature.

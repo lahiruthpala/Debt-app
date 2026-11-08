@@ -614,3 +614,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .contract-task .proof-inline{grid-column:1/-1}
 .quest .quest-proof-inline{flex-basis:100%}
 @media(max-width:620px){.proof-center{padding:16px}.proof-center-heading{flex-direction:column}.proof-uploader-footer .btn{width:100%}.proof-item{padding:13px}}
+
+.contract-task{flex-wrap:wrap}
+.contract-task>.proof-inline{flex:1 0 100%}
