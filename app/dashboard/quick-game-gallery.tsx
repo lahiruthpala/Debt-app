@@ -60,7 +60,7 @@ export default function QuickGameGallery({sceneId,active,role,onNotify,onChanged
  async function play(game:QuickGameKey){
    if(!sceneId||running)return
    setRunning(game)
-   onNotify("pending","Resolving your "+games.find(g=>g.key===game)?.title+" round…")
+   onNotify("pending","Working on your "+games.find(g=>g.key===game)?.title+" round…")
    try {
      const response=await fetch("/api/quick-games",{
        method:"POST",headers:{"Content-Type":"application/json"},

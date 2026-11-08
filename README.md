@@ -17,6 +17,9 @@
 - Self-reported personal data and journal entries can be erased by their author even after a contract ends. Audit metadata (without journal content) remains. No penalties apply for unlocking, declining an inspection, or withdrawing consent.
 - Publish or keep contract templates private; discover and customize community templates, then propose one to an accepted connection. The Sub must explicitly approve the terms before gameplay and may always pause/end the scene
 - Game effects are calculated and audited server-side (including limits), and every contract snapshots its terms and modules so template edits cannot retroactively alter agreements. Random events are **manually triggered** when available; this version does not execute unattended background events or charges.
+- Separate **Contracts** workspace (contract builder, official/community template discovery, personal templates and live contracts), and **Story games** workspace (discover, author/publish and play collaborative stories)
+- Focused **Game room** with seven instant games/tools: Debt Dice, Payoff Lab, Challenge Board, Coin Flip, High/Low, Mystery Cards and Vault Pick
+- Four new 24-hour-cooldown quick games use server-side secure random outcomes and log fictional credits/penalties; the Sub explicitly starts each balance-changing mini-game
 - Community Game Studio: write original rules and opening prompts, save drafts, publish to Discover, edit/unpublish your games, and play collaborative turn-based sessions inside approved scenes
 - Game sessions preserve the original rules, support both participants' free-form turns, and can be finished by either partner. Game moves never change the fictional ledger
 - Fixed-position action toasts show immediate progress, success and errors even when scrolled to the bottom of the dashboard
@@ -63,7 +66,7 @@ npm run test:e2e
 Playwright runs in Chromium against a real Next.js server. On every GitHub push, the CI job
 starts disposable PostgreSQL 16, runs schema migrations and a production build, and
 executes browser tests for both roles, sign-up/sign-in, discovery/invitations, consent,
-ledger updates, challenges, Debt Dice, pause/resume, termination and blocking.\nThe expanded journey also covers publishing custom games, creator authorization, discovery,\nshared turns, game completion and confirming balances are unaffected.
+ledger updates, challenges, Debt Dice, pause/resume, termination and blocking.\nThe expanded journey also covers separated Contracts/Story games navigation, quick-play game outcomes, cooldown and permission enforcement, publishing custom games, creator authorization, discovery,\nshared turns, game completion and confirming balances are unaffected.
 Failures upload screenshots, Playwright traces and the HTML report to Actions artifacts.
 
 Locally, set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=http://127.0.0.1:3000`,
