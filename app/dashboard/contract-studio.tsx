@@ -1,6 +1,7 @@
 "use client"
 import {useEffect,useState,type FormEvent} from "react"
 import type {ContractDefinition,ContractModule} from "@/lib/contract-rules"
+import BoundaryPlay from "./boundary-play"
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Connection={id:string;state:string;other_handle:string}
@@ -33,10 +34,14 @@ const templates={
   random:():ContractModule=>({id:id(),type:"random",name:"Surprise Events",cooldownHours:24,
     outcomes:[{label:"Surprise credit",delta:-1500,weight:3},
       {label:"Unexpected penalty",delta:750,weight:2},{label:"No change",delta:0,weight:5}]}),
+  lock:():ContractModule=>({id:id(),type:"lock",name:"Keyholding Agreement",suggestedDays:14,checkinHours:24,keyholderLabel:"Trusted partner"}),
+  permission:():ContractModule=>({id:id(),type:"permission",name:"Permission Protocol",initialStatus:"restricted",reminderHours:24}),
+  journal:():ContractModule=>({id:id(),type:"journal",name:"Private Reflection Log",prompt:"Describe your progress, thoughts and the next challenge."}),
+  calendar:():ContractModule=>({id:id(),type:"calendar",name:"Scheduled Ritual Window",days:[1,3,5],startHour:18,endHour:22}),
   tasks:():ContractModule=>({id:id(),type:"tasks",name:"Verified Challenges",
     tasks:[{id:id(),label:"Create a plan for the shared fictional goal",reward:1000}]})
 }
-const icons={dice:"⚄",wheel:"✺",random:"✧",checkin:"◷",tasks:"☑"}
+const icons={dice:"⚄",wheel:"✺",random:"✧",checkin:"◷",tasks:"☑",lock:"♢",permission:"◈",journal:"✒",calendar:"▦"}
 async function call(view:string,params:Record<string,string>={}){
   const res=await fetch("/api/contracts?"+new URLSearchParams({view,...params}),{cache:"no-store"})
   const data=await res.json().catch(()=>({}))
@@ -50,6 +55,9 @@ async function submit(data:Record<string,unknown>,url="/api/contracts"){
   return json
 }
 const messageOf=(e:unknown)=>e instanceof Error?e.message:"Request failed"
+const isGameModule=(m:ContractModule):m is Extract<ContractModule,{type:"dice"|"wheel"|"random"|"checkin"|"tasks"}>=>
+  ["dice","wheel","random","checkin","tasks"].includes(m.type)
+const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
 
 export default function ContractStudio({connections,role,onNotify,onChanged}:{
  connections:Connection[];role:"dom"|"sub";onNotify:Feedback;onChanged:()=>Promise<void>
@@ -73,6 +81,9 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
   const current=scenes.find(s=>s.scene_id===sceneId)
   const configured=current?.modules_snapshot||[]
   const total=current?current.principal+current.interest+current.penalties:0
+  const pressure=Math.min(100,Math.round(definition?definition.modules.length*8+
+    definition.terms.monthlyRate*1.4+definition.terms.lateFee/1500:0))
+  const pressureName=pressure>=70?"HIGH STAKES":pressure>=38?"INTENSIFYING":"CALIBRATED"
   const isPlayable=current?.status==="active" && current.connection_state==="active"
   const existing=detail?.scene.id===sceneId?detail:null
 
@@ -155,9 +166,9 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
   if(!definition)return <div className="dash-card">Opening contract workshop…</div>
   return <section className="contract-workshop" aria-label="Interactive debt contracts">
     <div className="contract-hero">
-      <div><div className="eyebrow">INTERACTIVE CONTRACT WORKSHOP · NEW</div>
-        <h2>Build a debt game that actually plays.</h2>
-        <p>Set imaginary debt terms, combine configurable dice, wheels, weighted random events, check-ins and tasks, then publish or propose to a partner. The server verifies every outcome in your mutually agreed contract.</p>
+      <div><div className="eyebrow">THE CONTRACT ATELIER · PRIVATE AGREEMENTS</div>
+        <h2>Design an agreement with presence.</h2>
+        <p>Build suspense with interactive games, private rituals, permission requests and shared challenges. Every term remains fictional, reviewable and consensual.</p>
       </div>
       <div className="contract-hero-glyph" aria-hidden="true">⚄<span>✺</span></div>
     </div>
@@ -169,7 +180,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
 
     {section==="builder" && <div className="contract-layout">
       <div className="dash-card contract-builder">
-        <div className="eyebrow">01 / CONTRACT IDENTITY</div>
+        <div className="eyebrow">01 / DEFINE THE AGREEMENT</div>
         <div className="form-grid">
           <label>CONTRACT NAME<input aria-label="Contract name" minLength={3} maxLength={80} value={definition.title}
             onChange={e=>setDefinition({...definition,title:e.target.value})}/></label>
@@ -178,20 +189,23 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
         </div>
         <label className="contract-label">DESCRIPTION<textarea aria-label="Contract description" rows={2} maxLength={320}
           value={definition.description} onChange={e=>setDefinition({...definition,description:e.target.value})}/></label>
-        <div className="eyebrow contract-step">02 / FICTIONAL DEBT TERMS</div>
+        <div className="eyebrow contract-step">02 / SET THE FICTIONAL STAKES</div>
         <div className="form-grid">
           {([["principal","Starting balance (LKR)",1000000],["monthlyRate","Monthly interest (%)",30],
             ["weeklyTarget","Weekly target (LKR)",100000],["lateFee","Late fee (LKR)",10000]] as const)
             .map(([field,label,max])=><label key={field}>{label}<input type="number" aria-label={label} min={0} max={max}
               value={definition.terms[field]} onChange={e=>updateTerms(field,Number(e.target.value))}/></label>)}
         </div>
-        <div className="eyebrow contract-step">03 / ADD INTERACTIVE GAME MODULES</div>
-        <p className="muted">Combine up to eight independent modules. Configure your chances, rewards, penalties, and cooldowns.</p>
+        <div className="eyebrow contract-step">03 / CHOOSE THE RULES OF PLAY</div>
+        <p className="muted">Combine up to eight configurable modules. Each adds something distinct: chance, progress, ritual, trust or reflection.</p>
         <div className="module-palette">
-          {(["dice","wheel","random","checkin","tasks"] as const).map(kind=><button type="button" key={kind}
+          {(["dice","wheel","random","checkin","tasks","lock","permission","journal","calendar"] as const).map(kind=><button type="button" key={kind}
             disabled={definition.modules.length>=8} onClick={()=>setDefinition({...definition,
               modules:[...definition.modules,templates[kind]()]})}>
-            <span>{icons[kind]}</span><b>{kind==="dice"?"Dice duel":kind==="wheel"?"Fortune wheel":kind==="random"?"Random events":kind==="checkin"?"Check-ins":"Verified tasks"}</b><small>＋ Add</small>
+            <span>{icons[kind]}</span><b>{kind==="dice"?"Dice duel":kind==="wheel"?"Fortune wheel":
+              kind==="random"?"Random events":kind==="checkin"?"Check-ins":
+              kind==="tasks"?"Verified tasks":kind==="lock"?"Keyholding status":
+              kind==="permission"?"Permission protocol":kind==="journal"?"Private journal":"Schedule"}</b><small>＋ Add</small>
           </button>)}
         </div>
         <div className="module-editor-list">{definition.modules.map((module,index)=><div key={module.id} className="module-editor">
@@ -202,7 +216,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
           </div>
           <label className="contract-label">DISPLAY NAME<input value={module.name} maxLength={65}
             aria-label={"Module name "+index} onChange={e=>updateModule(module.id,{name:e.target.value})}/></label>
-          {module.type!=="tasks" && <label className="contract-label">COOLDOWN HOURS (0 = no cooldown)
+          {isGameModule(module)&&module.type!=="tasks" && <label className="contract-label">COOLDOWN HOURS (0 = no cooldown)
             <input type="number" min={0} max={168} value={module.cooldownHours}
               aria-label={"Cooldown "+index} onChange={e=>updateModule(module.id,{cooldownHours:Number(e.target.value)})}/>
           </label>}
@@ -240,6 +254,44 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
             </label>
             <p className="contract-hint">Optional: when the Sub manually checks in after more than twice the agreed interval, one fictional late penalty applies. No automatic charges or unattended collection.</p>
           </div>}
+          {module.type==="lock" && <div className="module-fields contract-new-module">
+            <p className="contract-hint">Track a voluntary lock-status agreement. Only the Sub can self-report a lock or unlock. Requests invite partner feedback but never prevent exit.</p>
+            <label>SUGGESTED DAYS<input aria-label={"Lock suggested days "+index} type="number" min={1} max={90}
+              value={module.suggestedDays} onChange={e=>updateModule(module.id,{suggestedDays:Number(e.target.value)})}/></label>
+            <label>OPTIONAL TEXT CHECK-IN INTERVAL (HOURS)
+              <input aria-label={"Lock checkin interval "+index} type="number" min={1} max={168}
+                value={module.checkinHours} onChange={e=>updateModule(module.id,{checkinHours:Number(e.target.value)})}/></label>
+            <label>KEYHOLDER LABEL<input aria-label={"Keyholder label "+index} maxLength={40}
+              value={module.keyholderLabel} onChange={e=>updateModule(module.id,{keyholderLabel:e.target.value})}/></label>
+            <p className="contract-hint">No intimate photos, device control, location tracking or charges for unlocking or stopping.</p>
+          </div>}
+          {module.type==="permission"&&<div className="module-fields contract-new-module">
+            <p className="contract-hint">Configure an initial permission label and an optional personal counter. Permission requests can be approved or declined, without debt charges.</p>
+            <label>STARTING PERMISSION
+              <select aria-label={"Initial permission "+index} value={module.initialStatus}
+                onChange={e=>updateModule(module.id,{initialStatus:e.target.value as "restricted"|"limited"|"allowed"})}>
+                <option value="restricted">Restricted</option><option value="limited">Limited</option><option value="allowed">Allowed</option>
+              </select></label>
+            <label>REMINDER INTERVAL (HOURS)<input aria-label={"Permission reminder "+index} type="number" min={1} max={168}
+              value={module.reminderHours} onChange={e=>updateModule(module.id,{reminderHours:Number(e.target.value)})}/></label>
+          </div>}
+          {module.type==="journal"&&<div className="module-fields contract-new-module">
+            <label>PRIVATE WRITING PROMPT<textarea aria-label={"Journal prompt "+index} maxLength={180} rows={3}
+              value={module.prompt} onChange={e=>updateModule(module.id,{prompt:e.target.value})}/></label>
+            <p className="contract-hint">Only the connected participants can read or answer journal entries. No automatic debt changes.</p>
+          </div>}
+          {module.type==="calendar"&&<div className="module-fields contract-new-module">
+            <p className="contract-hint">Agree on a local-time ritual window. Informational only; it cannot prevent pausing or ending a contract.</p>
+            <div className="boundary-day-picker" aria-label="Agreement calendar days">
+              {days.map((day,number)=><label key={day}><input type="checkbox" checked={module.days.includes(number)}
+                onChange={()=>updateModule(module.id,{days:module.days.includes(number)?
+                  module.days.filter(x=>x!==number):[...module.days,number].sort()})}/>{day}</label>)}
+            </div>
+            <label>START HOUR<input aria-label={"Calendar start "+index} type="number" min={0} max={23}
+              value={module.startHour} onChange={e=>updateModule(module.id,{startHour:Number(e.target.value)})}/></label>
+            <label>END HOUR<input aria-label={"Calendar end "+index} type="number" min={1} max={24}
+              value={module.endHour} onChange={e=>updateModule(module.id,{endHour:Number(e.target.value)})}/></label>
+          </div>}
           {module.type==="tasks" && <div className="task-editor">
             <p className="contract-hint">The Sub submits a completion claim; the Dom approves before credits are awarded. One claim per task.</p>
             {module.tasks.map((task,j)=><div key={task.id} className="task-builder-row">
@@ -263,13 +315,20 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
       </div>
       <aside className="contract-side">
         <div className="dash-card contract-preview">
-          <div className="eyebrow">LIVE CONFIGURATION PREVIEW</div><h3>{definition.title}</h3>
+          <div className="eyebrow">LIVE AGREEMENT · BEFORE ACCEPTANCE</div>
+          <div className="contract-pressure"><div><small>CONTRACT INTENSITY</small><b>{pressureName}</b></div>
+            <strong>{pressure}<small>/100</small></strong></div>
+          <div className="contract-pressure-track"><span style={{width:pressure+"%"}}/></div>
+          <h3>{definition.title}</h3>
           <p className="muted">{definition.description}</p>
           <div className="preview-debt-value">{money(definition.terms.principal)}</div>
           <div className="contract-preview-line"><span>Monthly rate</span><b>{definition.terms.monthlyRate}%</b></div>
           <div className="contract-preview-line"><span>Weekly goal</span><b>{money(definition.terms.weeklyTarget)}</b></div>
           <div className="contract-preview-line"><span>Late fee</span><b>{money(definition.terms.lateFee)}</b></div>
-          <div className="contract-preview-modules">{definition.modules.map(m=><span key={m.id}>{moduleHeading(m)}</span>)}</div>
+          <div className="contract-preview-modules">{definition.modules.map((m,index)=><span key={m.id}>
+            {String(index+1).padStart(2,"0")} · {moduleHeading(m)}</span>)}</div>
+          <div className="preview-consent"><strong>THE FINAL WORD IS CONSENT.</strong>
+            <p>These are potential terms, not active obligations. Both partners must approve, and either may pause or end afterward.</p></div>
         </div>
         <div className="dash-card"><h3>Propose to a partner</h3><p className="muted">Choose an approved connection. The Sub must review and accept the contract before any game can affect its fictional ledger.</p>
           <label className="contract-label">CONNECTION<select aria-label="Contract connection" value={connectionId} onChange={e=>setConnectionId(e.target.value)}>
@@ -332,8 +391,10 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
               <button className="btn btn-danger-soft" disabled={busy} onClick={()=>void decide("end")}>End contract</button></>}
             {current.status==="ended"&&<p>This contract has ended. Its audit history stays visible; no further actions are permitted.</p>}
           </div>
+          <BoundaryPlay sceneId={sceneId} modules={configured} role={role} onNotify={onNotify}
+            onChanged={async()=>{await Promise.all([loadScenes(),loadDetails(sceneId)])}}/>
           <div className="section-title"><h2>Interactive extensions</h2><span>{configured.length} MODULES</span></div>
-          <div className="contract-game-grid">{configured.map(module=>{
+          <div className="contract-game-grid">{configured.filter(isGameModule).map(module=>{
             const previous=existing?.actions.find(a=>a.module_id===module.id)
             const claimFor=(taskId:string)=>existing?.claims.find(c=>c.module_id===module.id&&c.task_id===taskId)
             const cooldown=module.type==="tasks"?0:module.cooldownHours
