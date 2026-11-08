@@ -226,3 +226,46 @@ CREATE TABLE IF NOT EXISTS contract_task_claims (
 );
 CREATE INDEX IF NOT EXISTS contract_claims_scene_idx
   ON contract_task_claims(scene_id,created_at DESC);
+
+-- Consensual, text-only private contract status. No media uploads or hardware control.
+CREATE TABLE IF NOT EXISTS contract_boundary_state (
+  scene_id uuid NOT NULL REFERENCES scene_contracts(scene_id) ON DELETE CASCADE,
+  module_id uuid NOT NULL,
+  locked_since timestamptz,
+  permission_status varchar(12) CHECK (permission_status IN ('restricted','limited','allowed')),
+  release_last_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(scene_id,module_id)
+);
+CREATE TABLE IF NOT EXISTS contract_boundary_requests (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scene_contracts(scene_id) ON DELETE CASCADE,
+  module_id uuid NOT NULL,
+  requester_id text NOT NULL REFERENCES profiles(id),
+  reviewed_by text REFERENCES profiles(id),
+  kind varchar(16) NOT NULL CHECK (kind IN ('unlock','release','inspection')),
+  status varchar(12) NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','approved','declined','completed')),
+  note varchar(500) NOT NULL DEFAULT '',
+  response varchar(500) NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS contract_boundary_requests_scene_idx
+  ON contract_boundary_requests(scene_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS contract_boundary_one_open_request
+  ON contract_boundary_requests(scene_id,module_id,kind,requester_id) WHERE status='pending';
+
+CREATE TABLE IF NOT EXISTS contract_private_journal (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scene_contracts(scene_id) ON DELETE CASCADE,
+  module_id uuid NOT NULL,
+  author_id text NOT NULL REFERENCES profiles(id),
+  body varchar(1000) NOT NULL CHECK (char_length(body) BETWEEN 1 AND 1000),
+  reply varchar(700),
+  replied_by text REFERENCES profiles(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  replied_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS contract_private_journal_scene_idx
+  ON contract_private_journal(scene_id,created_at DESC);
