@@ -85,7 +85,7 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
   })
   sections.push({heading:"Conditions, consent and safety",paragraphs:[
     "All balances, rewards, interest, charges and penalties are fictional role-play values. This is not a loan, invoice, financial product, legally enforceable debt, or authorization for real-world payments.",
-    "Both adults participate voluntarily. Either partner may pause or end the scene at any time. No fictional charges or other penalties apply to withdrawing consent or physically unlocking.",
+    "Both adults participate voluntarily. Consent can be withdrawn at any time. Either partner may pause or end the scene at any time. No fictional charges or other penalties apply to withdrawing consent or physically unlocking.",
     "Only approved connected participants may perform contract actions. Server-generated game outcomes are logged and subject to configured cooldowns and a 40-action-per-day safety limit.",
     "Submitted private evidence is optional except where the agreed module requires a non-explicit lock image or a proof-backed payment; only the connected reviewer can approve it. Users retain deletion options for their private media.",
     "This agreement contains no real-world signature or identity verification. The timestamp records in-app acceptance only. Material changes require a new mutual agreement."
