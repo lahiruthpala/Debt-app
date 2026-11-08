@@ -211,7 +211,7 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await sub.page.reload()
     await tab(sub.page,"Game room")
     await sub.page.getByRole("button",{name:/My contracts/}).click()
-    await sub.page.locator(".scene-chip").filter({hasText:"proposed"}).click()
+    await sub.page.locator(".scene-chip").filter({hasText:"proposed"}).first().click()
     await sub.page.getByRole("button",{name:/Approve & activate contract/}).click()
     await expect(sub.page.getByRole("status")).toContainText("Scene activated")
     await sub.page.locator(".contract-game-card.kind-wheel").getByRole("button",{name:/Spin the wheel/}).click()
