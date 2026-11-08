@@ -57,6 +57,25 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_handle_unique ON profiles (lower(handle));
 
+-- Opt-in adult member showcase. All fields and activity/stat visibility default private.
+CREATE TABLE IF NOT EXISTS profile_showcases (
+  user_id text PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  display_name varchar(40) NOT NULL DEFAULT '',
+  tagline varchar(120) NOT NULL DEFAULT '',
+  likes jsonb NOT NULL DEFAULT '[]'::jsonb,
+  dislikes jsonb NOT NULL DEFAULT '[]'::jsonb,
+  dedication varchar(400) NOT NULL DEFAULT '',
+  boundaries varchar(400) NOT NULL DEFAULT '',
+  showcase_enabled boolean NOT NULL DEFAULT false,
+  show_stats boolean NOT NULL DEFAULT false,
+  show_achievements boolean NOT NULL DEFAULT false,
+  show_activity boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT showcase_likes_array CHECK(jsonb_typeof(likes)='array'),
+  CONSTRAINT showcase_dislikes_array CHECK(jsonb_typeof(dislikes)='array')
+);
+
+
 CREATE TABLE IF NOT EXISTS connections (
   id uuid PRIMARY KEY,
   pair_key text NOT NULL UNIQUE,
@@ -191,9 +210,13 @@ CREATE TABLE IF NOT EXISTS scene_contracts (
   author_id text NOT NULL REFERENCES profiles(id),
   title_snapshot varchar(80) NOT NULL,
   description_snapshot varchar(320) NOT NULL,
+  category_snapshot varchar(30) NOT NULL DEFAULT 'Custom',
   modules_snapshot jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Preserve a contract's category when the source template is later edited or deleted.
+ALTER TABLE scene_contracts ADD COLUMN IF NOT EXISTS category_snapshot varchar(30) NOT NULL DEFAULT 'Custom';
 
 CREATE TABLE IF NOT EXISTS contract_action_log (
   id uuid PRIMARY KEY,

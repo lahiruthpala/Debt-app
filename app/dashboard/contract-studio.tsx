@@ -8,7 +8,7 @@ type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Connection={id:string;state:string;other_handle:string}
 type Template=ContractDefinition & {id:string;author_id:string;author_handle:string;published:boolean;is_official?:boolean}
 type Scene={scene_id:string;connection_id:string;title_snapshot:string;description_snapshot:string;
- modules_snapshot:ContractModule[];status:string;connection_state:string;other_handle:string;
+ modules_snapshot:ContractModule[];status:string;approved_at:string|null;connection_state:string;other_handle:string;
  principal:number;interest:number;penalties:number;start_principal:number}
 type Action={id:string;module_id:string;action:string;delta:number;details:Record<string,unknown>;created_at:string;actor_handle:string}
 type Claim={id:string;module_id:string;task_id:string;state:string;reward:number;requester_handle:string}
@@ -391,6 +391,8 @@ export default function ContractStudio({connections,role,actorId,onNotify,onChan
               {role==="sub"&&<button className="btn btn-red" disabled={busy} onClick={()=>void decide("resume")}>Resume with consent</button>}
               <button className="btn btn-danger-soft" disabled={busy} onClick={()=>void decide("end")}>End contract</button></>}
             {current.status==="ended"&&<p>This contract has ended. Its audit history stays visible; no further actions are permitted.</p>}
+            {current.approved_at&&<a className="btn btn-outline" href={"/api/contracts/pdf?sceneId="+encodeURIComponent(sceneId)}
+              download={"mutual-contract-"+sceneId.slice(0,8)+".pdf"}>↓ Download accepted contract (PDF)</a>}
           </div>
           <BoundaryPlay sceneId={sceneId} sceneStatus={current.status} modules={configured} role={role} onNotify={onNotify}
             onChanged={async()=>{await Promise.all([loadScenes(),loadDetails(sceneId)])}}/>

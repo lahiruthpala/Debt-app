@@ -152,3 +152,41 @@ The API never returns a raw Blob URL; private proof files are streamed through a
 authenticated, no-cache endpoint. The server upload is deliberately capped
 below Vercel Functions' request-size limit. If the store was created as
 **Public**, create/connect a **Private** store before using this feature.
+
+
+## Mutually accepted contract PDF
+
+When a Dom proposes an interactive contract and the Sub accepts it, both participants
+can select **Download accepted contract (PDF)** from **Contracts → My contracts**.
+The authenticated PDF shows both user handles and the in-app acceptance timestamp,
+the original fictional ledger terms, agreement description and category, every
+configured game/module and its exact options (including wheel outcomes, random
+weights, task rewards, cooldowns, check-ins, lock-status review, and consent rules).
+
+- The PDF is generated on demand from the **original accepted snapshot**, not a
+  later edited template or changing balance.
+- The document is accessible only to contract participants, after acceptance.
+  Proposals cannot be downloaded as accepted agreements.
+- The PDF is a private, non-cacheable download. It is an in-app consent record,
+  **not a legally binding contract**, verified signature, or real financial debt.
+- Ending participation does not make the agreement enforceable or remove either
+  person's right to withdraw consent.
+
+## Member showcases
+
+Visit **My profile → Personal showcase** to edit a display name, headline, likes,
+dislikes, dedication, and voluntary boundaries. Members can preview their own
+showcase. Four independent sharing controls allow adult account holders to
+choose whether to reveal the showcase, aggregated statistics, earned achievements
+and broad recent activity (date only). Sharing is **off by default**. Discovery
+must also be enabled for other members to see the showcase.
+
+- Adults can select **View profile** from **Discover** before inviting a partner,
+  or view an opt-in /u/{handle} page when signed in.
+- Achievements and statistics are computed from recorded application events and
+  cannot be directly edited or self-awarded. No email addresses, partner handles,
+  balances, private notes, or documents are included in showcase responses.
+- Users can turn off sharing at any time; blocked accounts cannot view one
+  another's showcases. No public anonymous directory is created.
+- Profile likes, dislikes, dedication and boundaries are **self-reported**;
+  earned badges reflect only recorded application actions, not personal identity.

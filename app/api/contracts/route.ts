@@ -100,8 +100,8 @@ export async function GET(req:Request){
     }
     if(view==="scenes"){
       const {rows}=await getPool().query(
-        "SELECT sc.scene_id,sc.title_snapshot,sc.description_snapshot,sc.modules_snapshot,"+
-        "s.status,s.principal,s.interest,s.penalties,s.start_principal,s.connection_id,c.state AS connection_state,"+
+        "SELECT sc.scene_id,sc.title_snapshot,sc.description_snapshot,sc.category_snapshot,sc.modules_snapshot,"+
+        "s.status,s.approved_at,s.principal,s.interest,s.penalties,s.start_principal,s.connection_id,c.state AS connection_state,"+
         "p.handle AS other_handle FROM scene_contracts sc JOIN scenes s ON s.id=sc.scene_id "+
         "JOIN connections c ON c.id=s.connection_id JOIN profiles p "+
         "ON p.id=CASE WHEN c.sender_id=$1 THEN c.recipient_id ELSE c.sender_id END "+
@@ -192,9 +192,9 @@ export async function POST(req:Request){
         "VALUES($1,$2,'proposed',$3,$3,$4,$5,$6)",
         [id,connectionId,terms.principal,terms.monthlyRate,terms.weeklyTarget,terms.lateFee])
       await db.query(
-        "INSERT INTO scene_contracts(scene_id,template_id,author_id,title_snapshot,description_snapshot,modules_snapshot) "+
-        "VALUES($1,$2,$3,$4,$5,$6)",
-        [id,templateId,actor.id,definition.title,definition.description,JSON.stringify(definition.modules)])
+        "INSERT INTO scene_contracts(scene_id,template_id,author_id,title_snapshot,description_snapshot,modules_snapshot,category_snapshot) "+
+        "VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [id,templateId,actor.id,definition.title,definition.description,JSON.stringify(definition.modules),definition.category])
       await db.query("COMMIT");transaction=false
       return respond({id,message:"Debt contract proposed. Your partner must approve it before play starts."},201)
     }
