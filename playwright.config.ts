@@ -8,7 +8,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  timeout: 270_000,
+  timeout: process.env.PLAYWRIGHT_SKIP_WEBSERVER === "1" ? 600_000 : 270_000,
   expect: { timeout: 15_000 },
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
