@@ -226,3 +226,15 @@ CREATE TABLE IF NOT EXISTS contract_task_claims (
 );
 CREATE INDEX IF NOT EXISTS contract_claims_scene_idx
   ON contract_task_claims(scene_id,created_at DESC);
+
+-- Module-enabled fictional contracts are immutable once proposed; either partner may end.
+ALTER TABLE community_games ADD COLUMN IF NOT EXISTS engine_config jsonb NOT NULL DEFAULT '{"modules":[]}';
+ALTER TABLE scenes ADD COLUMN IF NOT EXISTS contract_game_id uuid REFERENCES community_games(id) ON DELETE SET NULL;
+ALTER TABLE scenes ADD COLUMN IF NOT EXISTS engine_snapshot jsonb NOT NULL DEFAULT '{"modules":[]}';
+CREATE TABLE IF NOT EXISTS contract_module_actions (
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  module_id varchar(20) NOT NULL,
+  last_used_at timestamptz NOT NULL DEFAULT now(),
+  uses integer NOT NULL DEFAULT 1 CHECK(uses > 0),
+  PRIMARY KEY (scene_id,module_id)
+);
