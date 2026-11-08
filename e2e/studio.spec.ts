@@ -108,7 +108,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
 
     // Publish an original game and play it as both members of the approved scene.
     const creativeTitle = "Story_" + stamp
-    await visit(domPage, "Game room")
+    await visit(domPage, "Story games")
     await domPage.getByRole("button", { name: /Create a game/ }).click()
     await domPage.getByLabel("GAME TITLE").fill(creativeTitle)
     await domPage.getByLabel("SHORT DESCRIPTION").fill("A collaborative mystery with a different ending every time.")
@@ -130,7 +130,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     expect(forbiddenUnpublish.status()).toBe(404)
 
     const before = (await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
-    await visit(subPage, "Game room")
+    await visit(subPage, "Story games")
     await subPage.getByLabel("Search community games").fill(creativeTitle)
     await subPage.getByRole("button", { name: "Explore library" }).click()
     await subPage.getByRole("button", { name: "View game " + creativeTitle }).click()
@@ -203,6 +203,37 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
 
     await subPage.reload()
     await visit(subPage, "Game room")
+    // Game Room is intentionally quick-play only, not an embedded editor.
+    await expect(subPage.locator(".contract-workshop")).toHaveCount(0)
+    await expect(subPage.locator(".community-studio")).toHaveCount(0)
+    await expect(subPage.getByRole("heading", { name: "Coin Flip" })).toBeVisible()
+    await expect(subPage.getByRole("heading", { name: "High or Low" })).toBeVisible()
+    await expect(subPage.getByRole("heading", { name: "Mystery Cards" })).toBeVisible()
+    await expect(subPage.getByRole("heading", { name: "Vault Pick" })).toBeVisible()
+
+    // Every quick game is resolved by the server and has its own cooldown.
+    for (const [key,label] of [
+      ["coin","Play Coin Flip"],["highlow","Play High or Low"],
+      ["cards","Draw mystery card"],["vault","Play Vault Pick"]
+    ] as const) {
+      const card = subPage.locator(".quick-mini-card.theme-"+key)
+      await card.getByRole("button", {name:label}).click()
+      await expect(card.locator(".quick-mini-result")).toBeVisible()
+      await expect(card.locator(".quick-mini-availability")).toContainText("Next round")
+      const repeat = await subPage.request.post("/api/quick-games",{
+        headers:{origin:apiOrigin},
+        data:{sceneId,game:key,choice:key==="coin"?"heads":key==="highlow"?"high":key==="cards"?"draw":"1"}
+      })
+      expect(repeat.status()).toBe(429)
+    }
+    const quickStatus = await subPage.request.get("/api/quick-games?sceneId="+sceneId)
+    expect(quickStatus.status()).toBe(200)
+    expect((await quickStatus.json()).plays).toHaveLength(4)
+    const illegalQuick = await domPage.request.post("/api/quick-games",{
+      headers:{origin:apiOrigin}, data:{sceneId,game:"coin",choice:"heads"}
+    })
+    expect(illegalQuick.status()).toBe(403)
+
     await expect(subPage.getByRole("heading", { name: "Debt Dice" })).toBeVisible()
     await subPage.getByRole("button", { name: /Roll the dice/ }).click()
     await expect(subPage.getByRole("status")).toContainText("Rolled")
@@ -269,6 +300,8 @@ test("public routes load; unauthenticated studio operations are denied", async (
   })
   expect(blocked.status()).toBe(401)
   expect((await request.get("/api/games?view=library")).status()).toBe(401)
+  expect((await request.get("/api/quick-games?sceneId=123")).status()).toBe(401)
+  expect((await request.post("/api/quick-games", {data:{game:"coin",choice:"heads"}})).status()).toBe(403)
   expect((await request.post("/api/games", {data: {action:"create"}})).status()).toBe(403)
 
   // Authentication must reject cross-origin signup requests (CSRF).
