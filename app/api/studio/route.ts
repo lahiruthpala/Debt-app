@@ -347,6 +347,12 @@ export async function POST(req: Request) {
           )
           const challenge = result.rows[0]
           if (!challenge || challenge.state !== "open") throw new ApiError(409, "Challenge is unavailable")
+          const attached = await db.query(
+            "SELECT id FROM proof_submissions WHERE challenge_id=$1 AND deleted_at IS NULL LIMIT 1",
+            [challengeId]
+          )
+          if (attached.rowCount) throw new ApiError(409, "Review the attached image in Proof Center before settling this challenge")
+
           const next = applyCredit(scene, challenge.reward)
           await db.query("UPDATE scenes SET principal=$1,interest=$2,penalties=$3,updated_at=now() WHERE id=$4",
             [next.principal,next.interest,next.penalties,sceneId])

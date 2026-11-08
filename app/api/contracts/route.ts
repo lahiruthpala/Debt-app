@@ -278,6 +278,12 @@ export async function POST(req:Request){
       "SELECT * FROM contract_task_claims WHERE id=$1 AND scene_id=$2 FOR UPDATE",[claimId,sceneId])
     const claim=claims[0]
     if(!claim||claim.state!=="pending")throw new ContractError(409,"Task claim is unavailable or already reviewed")
+    // Once a user attaches a photo, its verdict must go through Proof Center.
+    // Otherwise direct task approval could bypass reviewing the evidence.
+    const attachments=await db.query(
+      "SELECT id FROM proof_submissions WHERE claim_id=$1 AND deleted_at IS NULL LIMIT 1",[claimId])
+    if(attachments.rowCount)throw new ContractError(409,"Review the attached image in Proof Center before settling this task")
+
     let applied=0
     if(approve)applied=await applyDelta(db,scene,actor.id,-claim.reward,
       "Completed agreed task ("+claim.reward+" credit reward)")
