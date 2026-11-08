@@ -4,7 +4,7 @@ import {z} from "zod"
 import {getPool} from "@/lib/db"
 import {getAuth} from "@/lib/auth"
 import {applyCredit} from "@/lib/ledger"
-import {availableAfterCooldown,contractDefinitionSchema,contractModuleSchema,duelDelta,type ContractModule} from "@/lib/contract-rules"
+import {availableAfterCooldown,contractDefinitionSchema,contractModuleSchema,duelDelta,weightedOutcome,checkinDelta,type ContractModule} from "@/lib/contract-rules"
 
 export const runtime="nodejs"
 export const dynamic="force-dynamic"
@@ -229,10 +229,23 @@ export async function POST(req:Request){
         requested=outcome.delta
         details={outcomeIndex,label:outcome.label,delta:outcome.delta}
         description=module.name+": "+outcome.label
+      }else if(module.type==="random"){
+        const totalWeight=module.outcomes.reduce((sum,item)=>sum+item.weight,0)
+        const outcome=weightedOutcome(module.outcomes,randomInt(totalWeight))
+        requested=outcome.delta
+        details={label:outcome.label,weight:outcome.weight,totalWeight,delta:outcome.delta}
+        description=module.name+": random event — "+outcome.label
       }else{
-        requested=-module.reward
-        details={reward:module.reward}
-        description=module.name+": check-in completed"
+        const outcome=checkinDelta({
+          previous:history[0]?.created_at||null,
+          started:scene.approved_at||null,
+          intervalHours:module.cooldownHours,
+          reward:module.reward,
+          latePenalty:module.latePenalty,
+        })
+        requested=outcome.delta
+        details={reward:module.reward,overdue:outcome.overdue,latePenalty:outcome.latePenalty}
+        description=module.name+(outcome.overdue?" — late check-in completed":" — check-in completed")
       }
       const applied=await applyDelta(db,scene,actor.id,requested,description)
       await db.query(
