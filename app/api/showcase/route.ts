@@ -62,7 +62,9 @@ export async function GET(req:Request){
     const p=rows[0],isOwn=p.id===actor.id
     if(!p.adult_confirmed)return respond({error:"Profile not found"},404)
     if(!isOwn){
-      if(!p.discoverable||!p.showcase_enabled)return respond({error:"Profile not shared"},404)
+      // Discoverable members may show their public handle, role and bio even when
+      // the optional showcase is unpublished; never expose its private fields.
+      if(!p.discoverable)return respond({error:"Profile not shared"},404)
       const blocked=await getPool().query(
         "SELECT 1 FROM connections WHERE state='blocked' AND "+
         "((sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1)) LIMIT 1",
@@ -70,23 +72,30 @@ export async function GET(req:Request){
       if(blocked.rowCount)return respond({error:"Profile not available"},404)
     }
     const settings={...defaults,...p}
+    const showcaseVisible=isOwn||Boolean(p.showcase_enabled)
     const result:{profile:unknown;stats?:ShowcaseStats;badges?:unknown;activity?:unknown}={
       profile:{
-        handle:p.handle,role:p.role,bio:p.bio,displayName:settings.display_name??"",
-        tagline:settings.tagline??"",likes:settings.likes??[],dislikes:settings.dislikes??[],
-        dedication:settings.dedication??"",boundaries:settings.boundaries??"",
+        handle:p.handle,role:p.role,bio:p.bio,
+        displayName:showcaseVisible?(settings.display_name??""):"",
+        tagline:showcaseVisible?(settings.tagline??""):"",
+        likes:showcaseVisible?(settings.likes??[]):[],
+        dislikes:showcaseVisible?(settings.dislikes??[]):[],
+        dedication:showcaseVisible?(settings.dedication??""):"",
+        boundaries:showcaseVisible?(settings.boundaries??""):"",
         discoverable:p.discoverable,
-        showcaseEnabled:settings.showcase_enabled??false,showStats:settings.show_stats??false,
-        showAchievements:settings.show_achievements??false,showActivity:settings.show_activity??false,
+        showcaseEnabled:Boolean(settings.showcase_enabled),
+        showStats:showcaseVisible&&Boolean(settings.show_stats),
+        showAchievements:showcaseVisible&&Boolean(settings.show_achievements),
+        showActivity:showcaseVisible&&Boolean(settings.show_activity),
         updatedAt:p.updated_at
       }
     }
-    if(isOwn||settings.show_stats||settings.show_achievements){
+    if(isOwn||(showcaseVisible&&(settings.show_stats||settings.show_achievements))){
       const stats=await statsFor(p.id)
       if(isOwn||settings.show_stats)result.stats=stats
       if(isOwn||settings.show_achievements)result.badges=earnedBadges(stats)
     }
-    if(isOwn||settings.show_activity){
+    if(isOwn||(showcaseVisible&&settings.show_activity)){
       const recent=await getPool().query<{action:string;created_at:string}>(
         "SELECT action,created_at FROM contract_action_log WHERE actor_id=$1 "+
         "AND action IN ('dice','wheel','random','checkin','boundary_req','proof_review') "+
