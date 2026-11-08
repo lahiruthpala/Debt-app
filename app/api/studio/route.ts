@@ -4,6 +4,7 @@ import { z } from "zod"
 import { getPool } from "@/lib/db"
 import { getAuth } from "@/lib/auth"
 import { applyCredit, QUESTS } from "@/lib/ledger"
+import {isPresetInterest,MAX_DISCOVER_LIKES,normalizeInterests} from "@/lib/showcase"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -112,7 +113,15 @@ export async function GET(req: Request) {
     }
     const profile = requireProfile(actor)
     if (view === "discover") {
-      const q = (new URL(req.url).searchParams.get("q") || "").trim().slice(0, 50)
+      const params=new URL(req.url).searchParams
+      const q=(params.get("q")||"").trim().slice(0,50)
+      const rawLikes=params.get("likes")||"[]"
+      let requested:unknown
+      try{requested=JSON.parse(rawLikes)}catch{invalid("Invalid interest filter")}
+      if(!Array.isArray(requested)||requested.length>MAX_DISCOVER_LIKES||
+        requested.some(value=>typeof value!=="string"||!isPresetInterest(value))||
+        new Set(requested).size!==requested.length)invalid("Choose up to eight labels from the interest catalog")
+      const selected=requested as string[]
       const { rows } = await getPool().query(
         `SELECT p.id,p.handle,p.role,p.bio,
           COALESCE(sh.showcase_enabled,false) AS showcase_enabled,
@@ -121,14 +130,15 @@ export async function GET(req: Request) {
           FROM profiles p LEFT JOIN profile_showcases sh ON sh.user_id=p.id
           WHERE p.id<>$1 AND p.role<>$2 AND p.adult_confirmed=true
           AND p.discoverable=true AND (p.handle ILIKE $3 OR p.bio ILIKE $3)
+          AND ($5::jsonb = '[]'::jsonb OR (COALESCE(sh.showcase_enabled,false) AND sh.likes @> $5::jsonb))
           AND NOT EXISTS (SELECT 1 FROM connections c
             WHERE c.pair_key=$4 || ':' || p.id AND c.state IN ('pending','active','blocked'))
           AND NOT EXISTS (SELECT 1 FROM connections c
             WHERE c.pair_key=p.id || ':' || $4 AND c.state IN ('pending','active','blocked'))
           ORDER BY p.updated_at DESC LIMIT 24`,
-        [actor.id, profile.role, "%" + q + "%", actor.id]
+        [actor.id, profile.role, "%" + q + "%", actor.id,JSON.stringify(selected)]
       )
-      return respond({ profiles: rows })
+      return respond({ profiles: rows.map(row=>({...row,showcase_likes:normalizeInterests(row.showcase_likes)})) })
     }
     if (view === "connections") {
       const { rows } = await getPool().query(

@@ -1,6 +1,6 @@
 import {getAuth} from "@/lib/auth"
 import {getPool} from "@/lib/db"
-import {showcaseSchema,earnedBadges,activityLabel,type ShowcaseStats} from "@/lib/showcase"
+import {showcaseSchema,earnedBadges,activityLabel,normalizeInterests,type ShowcaseStats} from "@/lib/showcase"
 import {z} from "zod"
 
 export const runtime="nodejs"
@@ -78,8 +78,8 @@ export async function GET(req:Request){
         handle:p.handle,role:p.role,bio:p.bio,
         displayName:showcaseVisible?(settings.display_name??""):"",
         tagline:showcaseVisible?(settings.tagline??""):"",
-        likes:showcaseVisible?(settings.likes??[]):[],
-        dislikes:showcaseVisible?(settings.dislikes??[]):[],
+        likes:showcaseVisible?normalizeInterests(settings.likes):[],
+        dislikes:showcaseVisible?normalizeInterests(settings.dislikes):[],
         dedication:showcaseVisible?(settings.dedication??""):"",
         boundaries:showcaseVisible?(settings.boundaries??""):"",
         discoverable:p.discoverable,
