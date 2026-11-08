@@ -77,7 +77,12 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await domPage.getByRole("button", { name: "Search", exact: true }).click()
     const target = domPage.locator(".person").filter({ hasText: "@" + subHandle })
     await expect(target).toBeVisible()
-    await target.getByRole("button", { name: /Invite/ }).click()
+    // An unpublished showcase exposes only the public handle, role and bio.
+    await target.getByRole("button",{name:"View profile"}).click()
+    const preview=domPage.getByRole("dialog",{name:"Profile of @"+subHandle})
+    await expect(preview).toBeVisible()
+    await expect(preview.getByText("This member has not published their extended showcase.")).toBeVisible()
+    await preview.getByRole("button",{name:"Send invitation"}).click()
     await expect(domPage.getByRole("status")).toContainText("Invitation sent")
 
     // Cannot accept your own invitation.

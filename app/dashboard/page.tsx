@@ -7,11 +7,11 @@ import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
 import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
-import {ProfileShowcaseEditor} from "./profile-showcase"
+import {ProfileShowcaseEditor,ShowcasePreviewModal} from "./profile-showcase"
 import {UI_RELEASE} from "@/lib/ui-release"
 
 type Role = "dom" | "sub"
-type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean;showcase_enabled?:boolean;showcase_tagline?:string }
+type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean;showcase_enabled?:boolean;showcase_tagline?:string;showcase_likes?:string[] }
 type Connection = { id:string; sender_id:string; recipient_id:string; state:string; other_handle:string; other_role:Role; other_bio:string;other_showcase_enabled?:boolean;other_discoverable?:boolean }
 type Scene = { id:string; connection_id:string; status:string; connection_state:string; other_handle:string; other_role:Role; start_principal:number; principal:number; interest:number; penalties:number; monthly_rate:number; weekly_target:number; late_fee:number; last_roll_at:string|null;approved_at:string|null }
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [selected,setSelected]=useState("")
   const [details,setDetails]=useState<Details|null>(null)
   const [profiles,setProfiles]=useState<Profile[]>([])
+  const [previewProfile,setPreviewProfile]=useState<{id:string;handle:string}|null>(null)
   const [search,setSearch]=useState("")
   const [busy,setBusy]=useState(false)
   const [loading,setLoading]=useState(true)
@@ -153,8 +154,11 @@ export default function Dashboard() {
       notify("success",outcome.message || "Saved")
       await refresh()
       if(tab==="discover") await searchProfiles()
-    } catch(err){notify("error",err instanceof Error ? err.message : "Action failed")}
-    finally{setBusy(false)}
+      return true
+    } catch(err){
+      notify("error",err instanceof Error ? err.message : "Action failed")
+      return false
+    } finally{setBusy(false)}
   }
   function saveProfile(e:FormEvent) {
     e.preventDefault()
@@ -286,20 +290,49 @@ export default function Dashboard() {
           </>}
         </>}
 
-        {tab==="discover" && <div className="dash-card"><h3>Explore opt-in profiles</h3><p className="muted">Only adult profiles with the complementary role and discoverability enabled appear here. A connection starts only after they accept.</p>
-          <form className="search-row" onSubmit={e=>{e.preventDefault();void searchProfiles(true)}}><input value={search} maxLength={50} placeholder={"Search "+(ownRole==="dom"?"sub":"Dom")+" handles or bios..."} onChange={e=>setSearch(e.target.value)}/><button className="btn btn-red" type="submit">Search</button></form>
-          {profiles.length===0?<div className="empty-inner">No available profiles found. Try another search.</div>:<div className="people-list">{profiles.map(p=><div className="person" key={p.id}><span className="avatar">{p.handle[0].toUpperCase()}</span><div className="person-info"><b>@{p.handle}</b>
-            <small>{p.role.toUpperCase()} · {p.showcase_tagline||p.bio||"Exploring fictional scenes"}</small></div>
-            <div className="person-actions">
-              {p.showcase_enabled&&<Link className="btn btn-quiet" href={"/u/"+encodeURIComponent(p.handle)}>View profile</Link>}
-              <button className="btn btn-outline" disabled={busy} onClick={()=>act({action:"invite",targetId:p.id})}>Invite ↗</button>
-            </div></div>)}</div>}
-        </div>}
+        {tab==="discover" && <>
+          <div className="dash-card discover-hub">
+            <div className="discover-profile-header"><div>
+              <span className="eyebrow">THE MEMBER DIRECTORY</span>
+              <h3>Meet your potential counterpart</h3>
+              <p className="muted">Open their profile to review interests, preferences, dedication and achievements before you decide to invite them.</p>
+            </div></div>
+            <form className="search-row" onSubmit={e=>{e.preventDefault();void searchProfiles(true)}}>
+              <input value={search} maxLength={50}
+                placeholder={"Search "+(ownRole==="dom"?"sub":"Dom")+" handles or bios..."}
+                onChange={e=>setSearch(e.target.value)}/>
+              <button className="btn btn-red" type="submit">Search</button>
+            </form>
+            {profiles.length===0?<div className="empty-inner">No available profiles found. Try another search.</div>:
+              <div className="people-list discover-profile-list">{profiles.map(p=>
+                <div className="person discover-profile-card" key={p.id}>
+                  <span className="avatar" aria-hidden="true">{p.handle[0].toUpperCase()}</span>
+                  <div className="person-info">
+                    <b>@{p.handle} <span className="mini-label">{p.role.toUpperCase()}</span></b>
+                    <small>{p.showcase_tagline||p.bio||"This member hasn't written an introduction yet."}</small>
+                    {Boolean(p.showcase_likes?.length)&&<div className="discover-profile-preview">
+                      {p.showcase_likes?.slice(0,3).map((tag,i)=><span key={i}>{tag}</span>)}
+                    </div>}
+                  </div>
+                  <div className="person-actions">
+                    <button className="btn btn-red" type="button" onClick={()=>setPreviewProfile({id:p.id,handle:p.handle})}>
+                      View profile
+                    </button>
+                    <button className="btn btn-outline" type="button" disabled={busy}
+                      onClick={()=>void act({action:"invite",targetId:p.id})}>Invite ↗</button>
+                  </div>
+                </div>)}</div>}
+          </div>
+          {previewProfile&&<ShowcasePreviewModal key={previewProfile.id}
+            handle={previewProfile.handle} busy={busy} onClose={()=>setPreviewProfile(null)}
+            onInvite={()=>{void act({action:"invite",targetId:previewProfile.id})
+              .then(success=>{if(success)setPreviewProfile(null)})}}/>}
+        </>}
 
         {tab==="connections" && <>
           <div className="dash-card"><h3>Your connections</h3><p className="muted">Invitations are private. You can decline, disconnect or block another account at any time.</p>
             {!connections.length?<div className="empty-inner">No connections yet. Visit Discover to send an invitation.</div>:<div className="people-list">{connections.map(c=><div className="person" key={c.id}><span className="avatar">{c.other_handle[0]?.toUpperCase()}</span><div className="person-info"><b>@{c.other_handle} <span className={"status status-"+c.state}>{c.state}</span></b><small>{c.other_role.toUpperCase()} · {c.state==="pending"?(c.recipient_id===me.id?"Awaiting your response":"Invitation sent"):"Mutually connected"}</small></div><div className="person-actions">
-              {c.other_showcase_enabled&&c.other_discoverable&&<Link className="btn btn-quiet" href={"/u/"+encodeURIComponent(c.other_handle)}>View profile</Link>}
+              {c.other_discoverable&&<Link className="btn btn-quiet" href={"/u/"+encodeURIComponent(c.other_handle)}>View profile</Link>}
               {c.state==="pending" && c.recipient_id===me.id && <><button className="btn btn-red" disabled={busy} onClick={()=>act({action:"connection",id:c.id,decision:"accept"})}>Accept</button><button className="btn btn-outline" disabled={busy} onClick={()=>act({action:"connection",id:c.id,decision:"decline"})}>Decline</button></>}
               <button className="btn btn-quiet" disabled={busy} onClick={()=>{if(window.confirm("End this connection?"))void act({action:"connection",id:c.id,decision:"end"})}}>Disconnect</button>
               <button className="btn btn-danger-soft" disabled={busy} onClick={()=>{if(window.confirm("Block this account? They will not be able to invite you again."))void act({action:"connection",id:c.id,decision:"block"})}}>Block</button>

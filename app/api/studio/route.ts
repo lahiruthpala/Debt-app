@@ -116,7 +116,8 @@ export async function GET(req: Request) {
       const { rows } = await getPool().query(
         `SELECT p.id,p.handle,p.role,p.bio,
           COALESCE(sh.showcase_enabled,false) AS showcase_enabled,
-          CASE WHEN sh.showcase_enabled THEN sh.tagline ELSE '' END AS showcase_tagline
+          CASE WHEN sh.showcase_enabled THEN sh.tagline ELSE '' END AS showcase_tagline,
+          CASE WHEN sh.showcase_enabled THEN sh.likes ELSE '[]'::jsonb END AS showcase_likes
           FROM profiles p LEFT JOIN profile_showcases sh ON sh.user_id=p.id
           WHERE p.id<>$1 AND p.role<>$2 AND p.adult_confirmed=true
           AND p.discoverable=true AND (p.handle ILIKE $3 OR p.bio ILIKE $3)
