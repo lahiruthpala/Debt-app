@@ -350,6 +350,7 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       await expect(dom.page.getByRole("status")).toContainText("Request approved")
       const afterUnlock=await json(sub.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)
       expect(afterUnlock.state.find((x:{module_id:string;locked_since:string|null})=>x.module_id===lockModule.id)?.locked_since).toBeNull()
+      await sub.page.getByRole("button",{name:"Refresh status"}).click()
       await expect(sub.page.getByRole("button",{name:"Request lock",exact:true})).toBeDisabled()
     }
     await sub.page.getByRole("button",{name:"Request permission review"}).click()
