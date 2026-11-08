@@ -12,6 +12,9 @@
 - Persistent audit trail, penalties → interest → principal payment allocation
 - Monthly compounded interest and weekly late fees are **manual** actions with cooldowns
 - Interactive Contract Workshop: configure Dice Duel, Fortune Wheel, **weighted Random Events**, recurring Check-ins (with optional agreed late penalty), and verified Tasks. Customize probabilities, fictional credits/penalties, and cooldowns.
+- **Private Contract Atelier** adds opt-in lock-status tracking, optional permission-status counters, requests for review, text-only partner check-ins, private journals and agreed calendar windows. Nothing controls physical devices, requires intimate photos, or collects real payments.
+- New modules are included across all 20 first-party published templates, which retain server validation and mutually accepted snapshots. Live preview includes a visual intensity meter and explicit consent preview.
+- Self-reported personal data and journal entries can be erased by their author even after a contract ends. Audit metadata (without journal content) remains. No penalties apply for unlocking, declining an inspection, or withdrawing consent.
 - Publish or keep contract templates private; discover and customize community templates, then propose one to an accepted connection. The Sub must explicitly approve the terms before gameplay and may always pause/end the scene
 - Game effects are calculated and audited server-side (including limits), and every contract snapshots its terms and modules so template edits cannot retroactively alter agreements. Random events are **manually triggered** when available; this version does not execute unattended background events or charges.
 - Community Game Studio: write original rules and opening prompts, save drafts, publish to Discover, edit/unpublish your games, and play collaborative turn-based sessions inside approved scenes
