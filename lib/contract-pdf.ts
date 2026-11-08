@@ -39,7 +39,7 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
       "The modules below are a snapshot of the agreed games, rules, tasks and conditions. The PDF is a record of terms, not a live balance statement."
     ]}
   ]
-  for(const [index,module] of parsed.entries()){
+  parsed.forEach((module,index)=>{
     const body:string[]=[]
     switch(module.type){
       case "dice":
@@ -48,11 +48,11 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
         break
       case "wheel":
         body.push("Game: uniformly selected wheel segment. Cooldown: "+module.cooldownHours+" hours.")
-        for(const [n,o] of module.outcomes.entries())body.push("Segment "+(n+1)+": "+o.label+" - "+value(o.delta))
+        module.outcomes.forEach((o,n)=>body.push("Segment "+(n+1)+": "+o.label+" - "+value(o.delta)))
         break
       case "random":
         body.push("Game: server-selected weighted outcomes. Cooldown: "+module.cooldownHours+" hours; higher weights are more likely.")
-        for(const [n,o] of module.outcomes.entries())body.push("Outcome "+(n+1)+": "+o.label+" - "+value(o.delta)+"; weight "+o.weight)
+        module.outcomes.forEach((o,n)=>body.push("Outcome "+(n+1)+": "+o.label+" - "+value(o.delta)+"; weight "+o.weight))
         break
       case "checkin":
         body.push("Check-in interval: "+module.cooldownHours+" hours. Reward: "+money(module.reward)+".")
@@ -60,7 +60,7 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
         break
       case "tasks":
         body.push("The Sub submits each agreed task; the Dom must review and approve before credits are awarded.")
-        for(const [n,task] of module.tasks.entries())body.push("Task "+(n+1)+": "+task.label+" | reward "+money(task.reward))
+        module.tasks.forEach((task,n)=>body.push("Task "+(n+1)+": "+task.label+" | reward "+money(task.reward)))
         break
       case "lock":
         body.push("Suggested duration: "+module.suggestedDays+" days. Private check-in interval: "+module.checkinHours+" hours. Keyholder label: "+module.keyholderLabel+".")
@@ -76,13 +76,13 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
         body.push("Entries are private to the two participants. No automatic financial, physical or consent consequence is attached.")
         break
       case "calendar":
-        body.push("Scheduled days: "+module.days.map(d=>week[d]).join(", ")+". Local time window: "+
+        body.push("Scheduled days: "+module.days.map((d:number)=>week[d]).join(", ")+". Local time window: "+
           String(module.startHour).padStart(2,"0")+":00 to "+String(module.endHour).padStart(2,"0")+":00.")
         body.push("The window is informational; it does not restrict participants from leaving, pausing or ending the agreement.")
         break
     }
     sections.push({heading:(index+1)+". "+module.name+" ["+module.type.toUpperCase()+"]",paragraphs:body})
-  }
+  })
   sections.push({heading:"Conditions, consent and safety",paragraphs:[
     "All balances, rewards, interest, charges and penalties are fictional role-play values. This is not a loan, invoice, financial product, legally enforceable debt, or authorization for real-world payments.",
     "Both adults participate voluntarily. Either partner may pause or end the scene at any time. No fictional charges or other penalties apply to withdrawing consent or physically unlocking.",
@@ -125,7 +125,7 @@ export async function renderAgreementPdf(input:AgreementPdfInput):Promise<Uint8A
   const bold=await pdf.embedFont(StandardFonts.HelveticaBold)
   const W=595,H=842,pad=52,contentWidth=W-pad*2
   const ink=rgb(.19,.15,.22),muted=rgb(.44,.4,.45),rose=rgb(.63,.22,.38),white=rgb(1,1,1)
-  let page:PDFPage
+  let page!:PDFPage
   let y=0
   function nextPage(){
     page=pdf.addPage([W,H]);y=H-72
@@ -159,12 +159,12 @@ export async function renderAgreementPdf(input:AgreementPdfInput):Promise<Uint8A
     y-=10
   }
   const all=pdf.getPages()
-  for(const [i,p] of all.entries()){
+  all.forEach((p,i)=>{
     p.drawLine({start:{x:pad,y:48},end:{x:W-pad,y:48},thickness:.7,color:muted,opacity:.35})
     p.drawText("PRIVATE COPY  |  Fictional role-play agreement",{
       x:pad,y:32,size:8,font:regular,color:muted
     })
     p.drawText((i+1)+" / "+all.length,{x:W-pad-37,y:32,size:8,font:regular,color:muted})
-  }
+  })
   return pdf.save()
 }
