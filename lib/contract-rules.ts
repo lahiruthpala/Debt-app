@@ -12,7 +12,16 @@ export const contractModuleSchema = z.discriminatedUnion("type",[
     outcomes:z.array(z.object({label:z.string().trim().min(1).max(40),
       delta:z.number().int().min(-10000).max(10000)})).min(2).max(12)}),
   z.object({...moduleBase,type:z.literal("checkin"),
-    reward:z.number().int().min(0).max(5000),cooldownHours:z.number().int().min(1).max(168)}),
+    reward:z.number().int().min(0).max(5000),
+    latePenalty:z.number().int().min(0).max(5000).optional(),
+    cooldownHours:z.number().int().min(1).max(168)}),
+  z.object({...moduleBase,type:z.literal("random"),
+    cooldownHours:interval,
+    outcomes:z.array(z.object({
+      label:z.string().trim().min(1).max(40),
+      delta:z.number().int().min(-10000).max(10000),
+      weight:z.number().int().min(1).max(20),
+    })).min(2).max(12)}),
   z.object({...moduleBase,type:z.literal("tasks"),
     tasks:z.array(z.object({id,label:z.string().trim().min(3).max(140),
       reward:z.number().int().min(0).max(5000)})).min(1).max(12)})
@@ -50,4 +59,27 @@ export function availableAfterCooldown(last:Date|string|null,hours:number,at=Dat
   if(!last || hours===0)return {ready:true,remainingSeconds:0}
   const left=Math.max(0,Math.ceil((new Date(last).getTime()+hours*3600000-at)/1000))
   return {ready:left===0,remainingSeconds:left}
+}
+
+/** Weighted outcomes are chosen on the server, never by the browser. */
+export function weightedOutcome<T extends {weight:number}>(items:readonly T[],random:number):T {
+  const total=items.reduce((sum,item)=>sum+item.weight,0)
+  if(!items.length||total<=0||random<0||random>=total)throw new Error("Invalid random outcome")
+  let ticket=random
+  for(const item of items){
+    ticket-=item.weight
+    if(ticket<0)return item
+  }
+  return items[items.length-1]
+}
+
+/** Credits and missed-action penalties are netted once per manual check-in.
+ * A one-interval grace period prevents immediately punishing a late click.
+ * Never apply a scheduled penalty automatically in the background.
+ */
+export function checkinDelta(input:{previous:Date|string|null;started:Date|string|null;intervalHours:number;reward:number;latePenalty?:number},now=Date.now()) {
+  const anchor=input.previous??input.started
+  const overdue=Boolean(anchor && now-new Date(anchor).getTime()>input.intervalHours*2*3600000)
+  const charged=overdue?(input.latePenalty??0):0
+  return {overdue,latePenalty:charged,delta:charged-input.reward}
 }
