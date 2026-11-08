@@ -36,6 +36,7 @@ async function makeUser(browser:Browser,role:"DOM"|"SUB",handle:string){
   await expect(page).toHaveURL(/\/dashboard/,{timeout:25000})
   await page.getByRole("checkbox",{name:/I confirm that I am 18/}).check()
   await page.getByRole("button",{name:/Complete setup/}).click()
+  await expect(page.getByRole("button",{name:/Complete setup/})).toHaveCount(0,{timeout:25000})
   await expect(page.getByRole("heading",{name:"Your command center"})).toBeVisible()
   return {page,context,handle}
 }
@@ -74,8 +75,13 @@ test("interactive debt contract: publish, propose, consent, random modules, task
   try{
     await tab(dom.page,"Discover")
     await dom.page.getByPlaceholder(/Search sub handles or bios/).fill(sub.handle)
-    await dom.page.getByRole("button",{name:"Search",exact:true}).click()
     const profileResult=dom.page.locator(".person").filter({hasText:"@"+sub.handle})
+    for(let attempt=0;attempt<3;attempt++){
+      await dom.page.getByRole("button",{name:"Search",exact:true}).click()
+      await expect(dom.page.getByRole("status")).toContainText(/Found \d+ matching profiles/,{timeout:15000})
+      if(await profileResult.isVisible())break
+      await dom.page.waitForTimeout(1000)
+    }
     await expect(profileResult).toBeVisible({timeout:15000})
     await profileResult.getByRole("button",{name:/Invite/}).click()
     await expect(dom.page.getByRole("status")).toContainText("Invitation sent")
