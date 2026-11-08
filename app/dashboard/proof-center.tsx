@@ -76,7 +76,7 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
    {!hideNote&&<label className="proof-input-label">Private note (optional)
      <input value={note} maxLength={500} placeholder="Brief context for your partner…"
        onChange={e=>setNote(e.target.value)}/>
-   </label>
+   </label>}
    <label className="check-label proof-check">
      <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>
      <span>I consent to sharing a non-explicit photo with this connected partner. No intimate body photos, identifying documents or location details.</span>
