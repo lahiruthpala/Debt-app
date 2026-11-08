@@ -263,6 +263,13 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     sub.page.once("dialog",dialog=>dialog.accept())
     await sub.page.getByRole("button",{name:/End contract/}).click()
     await expect(sub.page.getByRole("status")).toContainText("Scene ended")
+    const erase=await sub.page.request.post("/api/contract-boundaries",{
+      headers:{origin},data:{action:"erase_private_data",sceneId:curatedScene.scene_id}
+    })
+    expect(erase.status()).toBe(200)
+    const erasedState=await json(sub.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)
+    expect(erasedState.entries).toHaveLength(0)
+    expect(erasedState.state).toHaveLength(0)
   }finally{
     // Never leave a synthetic published template in public discovery.
     if(templateId)await dom.page.request.post("/api/contracts",{
