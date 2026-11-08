@@ -650,3 +650,5 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .app-update-banner{border:1px solid #ab7d50;border-radius:12px;background:#352b27;color:#f4dfbb;padding:14px 17px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:15px}
 .app-update-banner strong{font-size:.88rem}.app-update-banner p{font-size:.73rem;margin-top:4px;color:#dec9b0}
 @media(max-width:720px){.lock-progress{grid-template-columns:1fr}.lock-primary-actions .btn{width:100%}.app-update-banner{flex-direction:column;align-items:stretch}}
+
+.lock-review-banner.is-legacy{background:#352926;border-color:#a47a4f}.lock-review-banner.is-legacy .lock-review-glyph{background:#795635;color:#ffe8c5}

@@ -77,7 +77,7 @@ export async function GET(req:Request){
     const sceneId=checked(uuid,new URL(req.url).searchParams.get("sceneId"))
     db=await getPool().connect()
     const {scene,modules}=await access(db,sceneId,player.id)
-    const [state,requests,entries,readyLockProofs]=await Promise.all([
+    const [state,requests,entries,readyLockProofs,approvedLocks]=await Promise.all([
       db.query("SELECT module_id,locked_since,permission_status,release_last_at,updated_at FROM contract_boundary_state WHERE scene_id=$1",[sceneId]),
       db.query("SELECT r.id,r.module_id,r.kind,r.status,r.note,r.response,r.created_at,r.reviewed_at,p.handle AS requester_handle "+
         "FROM contract_boundary_requests r JOIN profiles p ON p.id=r.requester_id "+
@@ -87,10 +87,13 @@ export async function GET(req:Request){
         "WHERE j.scene_id=$1 ORDER BY j.created_at DESC LIMIT 40",[sceneId]),
       db.query("SELECT id,module_id FROM proof_submissions WHERE scene_id=$1 AND submitter_id=$2 "+
         "AND kind='lock' AND status='pending' AND lock_request_id IS NULL "+
-        "AND deleted_at IS NULL AND blob_path IS NOT NULL ORDER BY created_at DESC",[sceneId,player.id])
+        "AND deleted_at IS NULL AND blob_path IS NOT NULL ORDER BY created_at DESC",[sceneId,player.id]),
+      db.query("SELECT DISTINCT module_id FROM contract_boundary_requests "+
+        "WHERE scene_id=$1 AND kind='lock' AND status='approved'",[sceneId])
     ])
     return json({status:scene.status,state:state.rows,requests:requests.rows,entries:entries.rows,
       readyLockProofs:readyLockProofs.rows,
+      approvedLockModules:approvedLocks.rows.map(row=>row.module_id),
       modules:modules.filter(m=>["lock","permission","journal","calendar"].includes(m.type))})
   }catch(e){return failure(e)}finally{db?.release()}
 }

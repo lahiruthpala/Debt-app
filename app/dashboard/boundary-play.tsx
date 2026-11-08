@@ -17,7 +17,7 @@ type JournalEntry={
   id:string;module_id:string;body:string;reply:string|null;created_at:string;author_handle:string
 }
 type BoundaryData={status:string;state:BoundaryStatus[];requests:BoundaryRequest[];entries:JournalEntry[];
-  readyLockProofs:{id:string;module_id:string}[]}
+  readyLockProofs:{id:string;module_id:string}[];approvedLockModules:string[]}
 const message=(error:unknown)=>error instanceof Error?error.message:"Unable to complete action"
 const daysSince=(value:string|null):string=>value?
   String(Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/86400000))):"—"
@@ -112,9 +112,11 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       const pendingLock=requests.some(r=>r.kind==="lock"&&r.status==="pending")
       const pendingUnlock=requests.some(r=>r.kind==="unlock"&&r.status==="pending")
       const lockActive=Boolean(state?.locked_since)
-      const lockPhase=lockActive?"locked":pendingLock?"pending":readyLockProof?"ready":"upload"
-      const photoReady=Boolean(readyLockProof)||pendingLock||lockActive
-      const requestSent=pendingLock||lockActive
+      const lockVerified=lockActive&&Boolean(data?.approvedLockModules?.includes(module.id))
+      const legacyLock=lockActive&&!lockVerified
+      const lockPhase=lockActive?(lockVerified?"locked":"legacy"):pendingLock?"pending":readyLockProof?"ready":"upload"
+      const photoReady=Boolean(readyLockProof)||pendingLock||lockVerified
+      const requestSent=pendingLock||lockVerified
       const isLock=module.type==="lock"
       const isPermission=module.type==="permission"
       const isJournal=module.type==="journal"
@@ -127,15 +129,15 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
         </header>
         {isLock&&<div className="boundary-content">
           <div className="boundary-metrics">
-            <div><small>REPORTED LOCK STATE</small><strong>{state?.locked_since?"Locked":"Not locked"}</strong></div>
+            <div><small>REPORTED LOCK STATE</small><strong>{legacyLock?"Locked · unverified":lockActive?"Locked":"Not locked"}</strong></div>
             <div><small>DAYS REPORTED</small><strong>{daysSince(state?.locked_since||null)}</strong></div>
             <div><small>PLANNED DURATION</small><strong>{module.suggestedDays} days</strong></div>
           </div>
           <div className={"lock-review-banner is-"+(pendingUnlock?"unlock-pending":lockPhase)} aria-live="polite">
-            <span className="lock-review-glyph" aria-hidden="true">{lockActive?"✓":pendingLock?"◷":readyLockProof?"✓":"↑"}</span>
+            <span className="lock-review-glyph" aria-hidden="true">{legacyLock?"!":lockActive?"✓":pendingLock?"◷":readyLockProof?"✓":"↑"}</span>
             <div>
-              <strong>{pendingUnlock?"Unlock request awaiting Dom review":lockActive?"Lock status approved":pendingLock?"Waiting for Dom approval":readyLockProof?"Lock photo uploaded — ready to request":"Start a new lock request"}</strong>
-              <p>{pendingUnlock?"The Dom may approve or decline your reported unlock. You can physically unlock or end the scene at any time.":lockActive?"The reported lock was accepted. The Sub may now request an unlock review.":pendingLock?"Your photo was submitted with the lock request. The app will not show Locked unless the Dom approves.":readyLockProof?"The image is stored privately. Request lock to send it to your Dom for review.":"Upload a non-explicit image first. Request lock stays disabled until the private upload succeeds."}</p>
+              <strong>{pendingUnlock?"Unlock request awaiting Dom review":legacyLock?"Previous lock report — not verified":lockActive?"Lock status approved":pendingLock?"Waiting for Dom approval":readyLockProof?"Lock photo uploaded — ready to request":"Start a new lock request"}</strong>
+              <p>{pendingUnlock?"The Dom may approve or decline your reported unlock. You can physically unlock or end the scene at any time.":legacyLock?"This status was recorded before the photo-approval workflow. It is not a Dom-approved lock request. You may request an unlock review or end the scene.":lockActive?"The reported lock was accepted. The Sub may now request an unlock review.":pendingLock?"Your photo was submitted with the lock request. The app will not show Locked unless the Dom approves.":readyLockProof?"The image is stored privately. Request lock to send it to your Dom for review.":"Upload a non-explicit image first. Request lock stays disabled until the private upload succeeds."}</p>
             </div>
           </div>
           <div className="lock-progress" aria-label="Lock approval steps">
@@ -147,9 +149,9 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
               <span aria-hidden="true">{requestSent?"✓":"2"}</span>
               <div><strong>Request lock</strong><small>{requestSent?"Sent to Dom":readyLockProof?"Ready to submit":"Waiting for photo"}</small></div>
             </div>
-            <div className={"lock-progress-step "+(lockActive?"is-complete":pendingLock?"is-current":"")}>
-              <span aria-hidden="true">{lockActive?"✓":"3"}</span>
-              <div><strong>Dom decision</strong><small>{lockActive?"Approved":pendingLock?"Review pending":"Required to mark locked"}</small></div>
+            <div className={"lock-progress-step "+(lockVerified?"is-complete":pendingLock?"is-current":"")}>
+              <span aria-hidden="true">{lockVerified?"✓":"3"}</span>
+              <div><strong>Dom decision</strong><small>{lockVerified?"Approved":legacyLock?"Legacy status · unverified":pendingLock?"Review pending":"Required to mark locked"}</small></div>
             </div>
           </div>
           <p className="boundary-description">Keyholder: <b>{module.keyholderLabel}</b>. Planned duration: {module.suggestedDays} days. This app records an agreement status; it does not control a device.</p>
