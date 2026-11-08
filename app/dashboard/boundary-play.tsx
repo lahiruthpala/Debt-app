@@ -82,6 +82,8 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       </div>
       <div className="boundary-consent"><span>◈</span><strong>Consent stays active</strong>
         <small>Either partner can pause or end the contract. No exit or withdrawal penalties.</small>
+        <button className="btn btn-quiet" disabled={working}
+          onClick={()=>void reload().catch(error=>onNotify("error",message(error)))}>Refresh status</button>
         {role==="sub"&&<button className="btn btn-quiet" disabled={working} onClick={()=>{
           if(window.confirm("Erase all your private counter data, journal entries and requests from this contract? This cannot be undone.")){
             void perform({action:"erase_private_data"})

@@ -314,6 +314,8 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       await tab(dom.page,"Contracts")
       await dom.page.getByRole("button",{name:/My contracts/}).click()
       await approveProof(dom.page,"Lock-status proof")
+      await sub.page.getByRole("button",{name:"Refresh status"}).click()
+      await expect(sub.page.getByRole("button",{name:"Request unlock review"})).toBeVisible()
       const afterLock=await json(dom.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)
       expect(afterLock.state.find((x:{module_id:string;locked_since:string|null})=>x.module_id===lockModule.id)?.locked_since).toBeTruthy()
       const lockedEvidence=(await json(sub.page,"/api/proofs?sceneId="+curatedScene.scene_id)).proofs
