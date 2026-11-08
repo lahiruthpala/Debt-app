@@ -282,3 +282,35 @@ CREATE TABLE IF NOT EXISTS quick_game_plays (
   PRIMARY KEY (scene_id,game_key)
 );
 CREATE INDEX IF NOT EXISTS quick_game_plays_actor_idx ON quick_game_plays(actor_id,played_at DESC);
+
+-- Explicitly optional photographic evidence. All evidence is non-public, never
+-- an authentication mechanism or a prerequisite for stopping roleplay.
+CREATE TABLE IF NOT EXISTS proof_submissions (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  submitter_id text NOT NULL REFERENCES profiles(id),
+  kind varchar(12) NOT NULL CHECK (kind IN ('lock','task','payment')),
+  module_id uuid,
+  claim_id uuid REFERENCES contract_task_claims(id),
+  amount integer CHECK (amount BETWEEN 1 AND 100000),
+  note varchar(500) NOT NULL DEFAULT '',
+  blob_path text,
+  content_type varchar(32) NOT NULL DEFAULT 'image/webp',
+  bytes integer NOT NULL CHECK (bytes BETWEEN 1 AND 3000000),
+  status varchar(12) NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','approved','rejected')),
+  reviewer_id text REFERENCES profiles(id),
+  review_note varchar(500),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  deleted_at timestamptz,
+  CHECK (
+    (kind='lock' AND module_id IS NOT NULL AND claim_id IS NULL AND amount IS NULL)
+    OR (kind='task' AND claim_id IS NOT NULL AND module_id IS NULL AND amount IS NULL)
+    OR (kind='payment' AND amount IS NOT NULL AND module_id IS NULL AND claim_id IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS proof_scene_queue_idx ON proof_submissions(scene_id,status,created_at DESC);
+CREATE INDEX IF NOT EXISTS proof_submitter_idx ON proof_submissions(submitter_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS proof_one_pending_per_claim_idx
+  ON proof_submissions(claim_id) WHERE kind='task' AND status='pending' AND deleted_at IS NULL;
