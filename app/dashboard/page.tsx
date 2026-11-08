@@ -9,6 +9,7 @@ import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
 import {ProfileShowcaseEditor,ShowcasePreviewModal} from "./profile-showcase"
 import {UI_RELEASE} from "@/lib/ui-release"
+import {interestGroups,MAX_DISCOVER_LIKES} from "@/lib/showcase"
 
 type Role = "dom" | "sub"
 type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean;showcase_enabled?:boolean;showcase_tagline?:string;showcase_likes?:string[] }
@@ -48,6 +49,8 @@ export default function Dashboard() {
   const [profiles,setProfiles]=useState<Profile[]>([])
   const [previewProfile,setPreviewProfile]=useState<{id:string;handle:string}|null>(null)
   const [search,setSearch]=useState("")
+  const [selectedLikes,setSelectedLikes]=useState<string[]>([])
+  const [likesSearch,setLikesSearch]=useState("")
   const [busy,setBusy]=useState(false)
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState("")
@@ -133,19 +136,28 @@ export default function Dashboard() {
   useEffect(()=>{
     if(tab==="discover" && me?.profile) {void searchProfiles()}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[tab,me?.profile?.id])
+  },[tab,me?.profile?.id,selectedLikes])
 
   async function searchProfiles(showFeedback=false) {
     const revision=++profileSearchId.current
     if(showFeedback) notify("pending","Working on your search…")
     try {
-      const data=await api("discover",{q:search})
+      const data=await api("discover",{q:search,likes:JSON.stringify(selectedLikes)})
       if(revision!==profileSearchId.current)return
       setProfiles(data.profiles)
       if(showFeedback)notify("success",`Found ${data.profiles.length} matching profiles.`)
     } catch(err){
       if(revision===profileSearchId.current)notify("error",err instanceof Error?err.message:"Search failed")
     }
+  }
+  function toggleDiscoverLike(label:string){
+    setSelectedLikes(current=>{
+      if(current.includes(label))return current.filter(value=>value!==label)
+      if(current.length>=MAX_DISCOVER_LIKES){
+        notify("error","Choose up to "+MAX_DISCOVER_LIKES+" likes to match.");return current
+      }
+      return [...current,label]
+    })
   }
   async function act(payload:Record<string,unknown>) {
     setBusy(true);notify("pending","Processing your action…")
@@ -303,6 +315,40 @@ export default function Dashboard() {
                 onChange={e=>setSearch(e.target.value)}/>
               <button className="btn btn-red" type="submit">Search</button>
             </form>
+            <section className="discover-like-filter" aria-label="Filter members by preset likes">
+              <div className="discover-like-filter-head">
+                <div><strong>Match by likes</strong>
+                  <p>Choose preset labels that a member has publicly liked. Selected labels must all match.</p>
+                </div>
+                {selectedLikes.length>0&&<button className="btn btn-quiet" type="button"
+                  onClick={()=>setSelectedLikes([])}>Clear filters ({selectedLikes.length})</button>}
+              </div>
+              <label className="discover-filter-search">Find a label
+                <input type="search" value={likesSearch} placeholder="Search likes, games or interests..."
+                  onChange={event=>setLikesSearch(event.target.value)}/>
+              </label>
+              {selectedLikes.length>0&&<div className="discover-selected-likes">
+                {selectedLikes.map(label=><button type="button" key={label}
+                  aria-label={"Remove filter "+label} onClick={()=>toggleDiscoverLike(label)}>{label} ×</button>)}
+              </div>}
+              <div className="discover-likes-catalog">
+                {interestGroups.map(group=>({
+                  ...group,labels:group.labels.filter(label=>label.toLowerCase().includes(likesSearch.trim().toLowerCase()))
+                })).filter(group=>group.labels.length>0).map(group=>
+                  <div className="discover-likes-category" key={group.name}>
+                    <h4>{group.name}</h4>
+                    <div className="discover-likes-options">
+                      {group.labels.map(label=><button type="button" key={label}
+                        className={selectedLikes.includes(label)?"is-selected":""}
+                        aria-label={"Filter by "+label} aria-pressed={selectedLikes.includes(label)}
+                        onClick={()=>toggleDiscoverLike(label)}>{label}</button>)}
+                    </div>
+                  </div>)}
+              </div>
+              <p className="showcase-footnote">{selectedLikes.length?
+                "Showing profiles that publicly like all "+selectedLikes.length+" selected label(s).":
+                "No interest filter selected. Search all discoverable members."}</p>
+            </section>
             {profiles.length===0?<div className="empty-inner">No available profiles found. Try another search.</div>:
               <div className="people-list discover-profile-list">{profiles.map(p=>
                 <div className="person discover-profile-card" key={p.id}>
