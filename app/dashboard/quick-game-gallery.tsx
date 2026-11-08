@@ -28,8 +28,9 @@ function cooldown(play?:LastPlay){
  if(!play)return null
  const remaining=Date.parse(play.played_at)+24*60*60*1000-Date.now()
  if(remaining<=0)return null
- const hours=Math.floor(remaining/3600000)
- const minutes=Math.ceil((remaining%3600000)/60000)
+ const allMinutes=Math.ceil(remaining/60000)
+ const hours=Math.floor(allMinutes/60)
+ const minutes=allMinutes%60
  return `Next round in ${hours}h ${minutes}m`
 }
 export default function QuickGameGallery({sceneId,active,role,onNotify,onChanged}:{
