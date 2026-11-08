@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import {useEffect,useState,type FormEvent} from "react"
+import {useEffect,useState,type FormEvent,type ReactNode} from "react"
 import type {ShowcaseSettings,ShowcaseStats,ShowcaseBadge} from "@/lib/showcase"
 
 type PublicProfile={
@@ -11,72 +11,150 @@ type PublicProfile={
 }
 type ActivityItem={label:string;date:string}
 type ShowcaseResponse={profile:PublicProfile;stats?:ShowcaseStats;badges?:ShowcaseBadge[];activity?:ActivityItem[]}
+type ProfileTab="overview"|"activity"|"achievements"
 const defaults:ShowcaseSettings={
   displayName:"",tagline:"",likes:[],dislikes:[],dedication:"",boundaries:"",
   showcaseEnabled:false,showStats:false,showAchievements:false,showActivity:false
 }
-const badges:Record<string,string>={"first-agreement":"✦","consistent-partner":"◆","first-game":"⚄",
+const badgeSymbols:Record<string,string>={"first-agreement":"✦","consistent-partner":"◆","first-game":"⚄",
   "active-player":"✺","verified-task":"✓","verified-evidence":"◈","trusted-reviewer":"♢","creator":"✎"}
-const statLabels:Record<keyof ShowcaseStats,string>={
-  acceptedAgreements:"Accepted contracts",gameActions:"Game actions",
-  tasksApproved:"Approved tasks",proofsApproved:"Proofs approved",
-  proofsReviewed:"Reviews completed",publishedTemplates:"Published templates"
-}
+const stats: {key:keyof ShowcaseStats;label:string;symbol:string}[]=[
+  {key:"acceptedAgreements",label:"Agreements",symbol:"◇"},
+  {key:"gameActions",label:"Game actions",symbol:"⚄"},
+  {key:"tasksApproved",label:"Verified tasks",symbol:"✓"},
+  {key:"proofsApproved",label:"Approved proofs",symbol:"◈"},
+  {key:"proofsReviewed",label:"Proof reviews",symbol:"♢"},
+  {key:"publishedTemplates",label:"Creations",symbol:"✦"}
+]
 async function fetchShowcase(query:string):Promise<ShowcaseResponse>{
   const response=await fetch("/api/showcase?"+query,{cache:"no-store"})
   const body=await response.json().catch(()=>({}))
   if(!response.ok)throw new Error(body.error||"Unable to load member profile")
   return body as ShowcaseResponse
 }
-function MemberCard({data,preview=false}:{data:ShowcaseResponse;preview?:boolean}){
-  const p=data.profile
-  return <div className="showcase-card">
-    <div className="showcase-cover" aria-hidden="true"><span>◆</span><span>✦</span><span>◇</span></div>
-    <div className="showcase-identity">
-      <div className="showcase-avatar">{(p.displayName||p.handle).slice(0,1).toUpperCase()}</div>
-      <div><span className="eyebrow">MEMBER SHOWCASE {preview?"· OWNER PREVIEW":""}</span>
-        <h2>{p.displayName||p.handle}</h2>
-        <p className="showcase-handle">@{p.handle} <span className="mini-label">{p.role.toUpperCase()}</span></p>
-        <p className="showcase-tagline">{p.tagline||"Building thoughtful, consensual connections."}</p>
-      </div>
-    </div>
-    {p.bio&&<p className="showcase-about">{p.bio}</p>}
-    <div className="showcase-sections">
-      <section className="showcase-section"><h3>Likes & interests</h3>
-        {p.likes.length?<div className="showcase-chips">{p.likes.map((tag,i)=><span key={i} className="showcase-chip">{tag}</span>)}</div>:
-          <p className="muted">No public interests yet.</p>}
-      </section>
-      <section className="showcase-section"><h3>Dislikes & boundaries</h3>
-        {p.dislikes.length?<div className="showcase-chips">{p.dislikes.map((tag,i)=><span key={i} className="showcase-chip negative">{tag}</span>)}</div>:
-          <p className="muted">No dislikes listed.</p>}
-        {p.boundaries&&<p className="showcase-note"><strong>Personal limits</strong>{p.boundaries}</p>}
-      </section>
-      {p.dedication&&<section className="showcase-section showcase-wide"><h3>Dedication</h3>
-        <p className="showcase-dedication">{p.dedication}</p>
-        <small>Written by this member; not independently verified.</small>
-      </section>}
-      {data.stats&&<section className="showcase-section showcase-wide">
-        <h3>Recorded statistics</h3>
-        <div className="showcase-stats">{(Object.keys(statLabels) as (keyof ShowcaseStats)[]).map(k=>
-          <div key={k} className="showcase-stat"><strong>{data.stats?.[k]??0}</strong><small>{statLabels[k]}</small></div>)}</div>
-        <p className="showcase-footnote">Counts come from in-app records, not self-reported claims. No partner identities or balances are shared.</p>
-      </section>}
-      {data.badges&&<section className="showcase-section showcase-wide"><h3>Achievements</h3>
-        {data.badges.length?<div className="showcase-achievements">{data.badges.map(b=>
-          <div className="showcase-achievement" key={b.id}><span aria-hidden="true">{badges[b.id]||"✦"}</span>
-            <div><strong>{b.title}</strong><small>{b.description}</small></div></div>)}</div>:
-          <p className="muted">Earned achievements will appear as activities are completed.</p>}
-      </section>}
-      {data.activity&&<section className="showcase-section showcase-wide"><h3>Recent activity</h3>
-        {data.activity.length?<div className="showcase-timeline">{data.activity.map((a,i)=>
-          <div key={i}><span>{a.label}</span><time dateTime={a.date}>{a.date}</time></div>)}</div>:
-          <p className="muted">No recorded activity yet.</p>}
-        <p className="showcase-footnote">Only generic activity descriptions and dates are shown.</p>
-      </section>}
-    </div>
-    <div className="showcase-disclaimer">Profile details are member-submitted. Activity and achievements reflect in-app records only.
-      Connections and contracts still require explicit mutual consent.</div>
+function SectionTitle({eyebrow,title}:{eyebrow:string;title:string}){
+  return <div className="profile-v2-section-title">
+    <span className="profile-v2-eyebrow">{eyebrow}</span>
+    <h3>{title}</h3>
   </div>
+}
+function TagGroup({items,negative=false}:{items:string[];negative?:boolean}){
+  return items.length?<div className="profile-v2-tags">{items.map((item,i)=>
+    <span key={i} className={"profile-v2-tag"+(negative?" is-negative":"")}>{item}</span>)}</div>:
+    <p className="profile-v2-empty">Nothing listed yet.</p>
+}
+function MemberCard({data,preview=false,actions}:{data:ShowcaseResponse;preview?:boolean;actions?:ReactNode}){
+  const [active,setActive]=useState<ProfileTab>("overview")
+  const p=data.profile
+  const full=p.showcaseEnabled||preview
+  const display=p.displayName||p.handle
+  const initials=display.trim().slice(0,2).toUpperCase()
+  const hasActivity=Boolean(data.activity)
+  const hasBadges=Boolean(data.badges)
+  return <article className="profile-v2" aria-label={"Member profile for @"+p.handle}>
+    <div className="profile-v2-cover">
+      <div className="profile-v2-cover-pattern" aria-hidden="true"><span>✦</span><span>◇</span><span>◈</span></div>
+      <span className="profile-v2-cover-caption">VELVET LEDGER <span>/ MEMBER DIRECTORY</span></span>
+      <span className="profile-v2-cover-tag">VOLUNTARY CONNECTIONS</span>
+    </div>
+    <div className="profile-v2-head">
+      <div className="profile-v2-avatar" aria-hidden="true">{initials}</div>
+      <div className="profile-v2-identity">
+        <div className="profile-v2-identity-label">{preview?"YOUR LIVE PREVIEW":"MEMBER PROFILE"}</div>
+        <h2>{display}</h2>
+        <div className="profile-v2-identity-meta">
+          <span className="profile-v2-username">@{p.handle}</span>
+          <span className={"profile-v2-role is-"+p.role}>{p.role==="dom"?"Dom":"Sub"}</span>
+          <span className="profile-v2-visibility">{p.discoverable?"Discoverable":"Private profile"}</span>
+        </div>
+        {full&&p.tagline?<p className="profile-v2-headline">{p.tagline}</p>:
+          <p className="profile-v2-headline">{p.bio||"Discover more about this member before deciding to connect."}</p>}
+      </div>
+      {actions&&<div className="profile-v2-head-actions">{actions}</div>}
+    </div>
+    <nav className="profile-v2-tabs" aria-label="Member profile sections">
+      {([
+        ["overview","Overview"],["activity","Activity"],["achievements","Achievements"]
+      ] as [ProfileTab,string][]).map(([key,label])=>
+        <button key={key} type="button" aria-pressed={active===key}
+          className={active===key?"is-selected":""} onClick={()=>setActive(key)}>{label}
+          {key==="achievements"&&data.badges&&<span className="profile-v2-tab-count">{data.badges.length}</span>}
+        </button>)}
+    </nav>
+    {active==="overview"&&<div className="profile-v2-content">
+      {data.stats&&<section className="profile-v2-stat-section" aria-label="Member statistics">
+        <div className="profile-v2-section-bar"><SectionTitle eyebrow="VERIFIED APP DATA" title="At a glance"/>
+          <span className="profile-v2-sublabel">Based on recorded activity</span></div>
+        <div className="profile-v2-stat-grid">{stats.map(stat=>
+          <div className="profile-v2-stat" key={stat.key}>
+            <span aria-hidden="true" className="profile-v2-stat-icon">{stat.symbol}</span>
+            <strong>{data.stats?.[stat.key]??0}</strong><span>{stat.label}</span>
+          </div>)}</div>
+      </section>}
+      <div className="profile-v2-columns">
+        <div className="profile-v2-main">
+          <section className="profile-v2-panel">
+            <SectionTitle eyebrow="INTRODUCTION" title="About me"/>
+            <p className="profile-v2-paragraph">{p.bio||"This member hasn't written an introduction yet."}</p>
+            {!full&&<p className="profile-v2-private-message">This member has not published their extended showcase. You can still decide whether to send an invitation using their public handle and introduction.</p>}
+          </section>
+          {full&&<>
+            <section className="profile-v2-panel">
+              <SectionTitle eyebrow="PREFERENCES" title="Likes & interests"/>
+              <TagGroup items={p.likes}/>
+            </section>
+            <section className="profile-v2-panel">
+              <SectionTitle eyebrow="PREFERENCES" title="Dislikes"/>
+              <TagGroup items={p.dislikes} negative/>
+            </section>
+          </>}
+        </div>
+        <aside className="profile-v2-side">
+          {full&&<section className="profile-v2-panel profile-v2-dedication">
+            <SectionTitle eyebrow="PERSONAL STATEMENT" title="Dedication"/>
+            <span className="profile-v2-quote-mark" aria-hidden="true">“</span>
+            <p>{p.dedication||"No dedication statement shared yet."}</p>
+            <small>Written by this member · not independently verified</small>
+          </section>}
+          {full&&<section className="profile-v2-panel profile-v2-boundaries">
+            <SectionTitle eyebrow="CONSENT FIRST" title="Boundaries & expectations"/>
+            <p className="profile-v2-paragraph">{p.boundaries||"No additional boundaries listed."}</p>
+          </section>}
+          <section className="profile-v2-panel profile-v2-connection-info">
+            <SectionTitle eyebrow="GETTING CONNECTED" title="Before you invite"/>
+            <p>Review their interests and limits. An invitation creates no contract: the other member must accept, and any proposed terms require separate consent.</p>
+          </section>
+        </aside>
+      </div>
+    </div>}
+    {active==="activity"&&<div className="profile-v2-content">
+      <section className="profile-v2-panel profile-v2-tab-panel">
+        <SectionTitle eyebrow="RECENT PARTICIPATION" title="Activity timeline"/>
+        {hasActivity?(data.activity?.length?<ol className="profile-v2-activity-list">{data.activity.map((item,i)=>
+          <li key={i}><span className="profile-v2-activity-dot" aria-hidden="true"/>
+            <div><strong>{item.label}</strong><small>Recorded app action</small></div>
+            <time dateTime={item.date}>{item.date}</time></li>)}</ol>:
+          <p className="profile-v2-empty">No recorded activity yet.</p>):
+          <div className="profile-v2-private-panel"><span aria-hidden="true">◇</span>
+            <strong>Activity is private</strong><p>This member has not chosen to share their activity history.</p></div>}
+        <p className="profile-v2-fineprint">When visible, activity shows only generic actions and dates. No partner identities, balances, or private notes.</p>
+      </section>
+    </div>}
+    {active==="achievements"&&<div className="profile-v2-content">
+      <section className="profile-v2-panel profile-v2-tab-panel">
+        <SectionTitle eyebrow="EARNED IN THE APP" title="Achievements"/>
+        {hasBadges?(data.badges?.length?<div className="profile-v2-badge-grid">{data.badges.map(b=>
+          <div className="profile-v2-badge" key={b.id}>
+            <span className="profile-v2-badge-icon" aria-hidden="true">{badgeSymbols[b.id]||"✦"}</span>
+            <div><strong>{b.title}</strong><small>{b.description}</small></div></div>)}</div>:
+          <p className="profile-v2-empty">No achievements earned yet.</p>):
+          <div className="profile-v2-private-panel"><span aria-hidden="true">✦</span>
+            <strong>Achievements are private</strong><p>This member has chosen not to share their earned badges.</p></div>}
+        <p className="profile-v2-fineprint">Achievements are calculated from recorded app events. They cannot be awarded manually.</p>
+      </section>
+    </div>}
+    <footer className="profile-v2-footer">Profile information is self-reported unless marked as verified app activity. All connections require mutual consent.</footer>
+  </article>
 }
 export function ShowcaseViewer({handle}:{handle:string}){
   const [data,setData]=useState<ShowcaseResponse|null>(null)
@@ -90,15 +168,50 @@ export function ShowcaseViewer({handle}:{handle:string}){
     return ()=>{alive=false}
   },[handle])
   return <div className="showcase-view">
-    <div className="showcase-nav"><Link href="/dashboard">← Back to dashboard</Link><span>MEMBER IDENTITY · OPT-IN</span></div>
-    {loading?<div className="dash-card">Loading member showcase…</div>:
+    <div className="showcase-nav"><Link href="/dashboard">← Back to dashboard</Link><span>MEMBER PROFILE / VERIFIED PRIVACY</span></div>
+    {loading?<div className="dash-card">Loading member profile…</div>:
       data?<MemberCard data={data}/>:
       <div className="dash-card"><h2>Profile unavailable</h2>
-        <p className="muted">{error}. The member may have disabled their showcase or discovery.</p>
-        <Link className="btn btn-outline" href="/login">Sign in to view member profiles</Link>
+        <p className="muted">{error}. This member may be undiscoverable, blocked, or no longer available.</p>
+        <Link className="btn btn-outline" href="/dashboard">Back to dashboard</Link>
       </div>}
   </div>
 }
+export function ShowcasePreviewModal({handle,onClose,onInvite,busy}:{handle:string;onClose:()=>void;onInvite:()=>void;busy:boolean}){
+  const [data,setData]=useState<ShowcaseResponse|null>(null)
+  const [error,setError]=useState("")
+  useEffect(()=>{
+    let alive=true;setData(null);setError("")
+    void fetchShowcase(new URLSearchParams({handle}).toString())
+      .then(value=>{if(alive)setData(value)})
+      .catch(e=>{if(alive)setError(e instanceof Error?e.message:"Could not load this profile")})
+    return ()=>{alive=false}
+  },[handle])
+  useEffect(()=>{
+    function dismiss(event:KeyboardEvent){if(event.key==="Escape")onClose()}
+    window.addEventListener("keydown",dismiss)
+    return ()=>window.removeEventListener("keydown",dismiss)
+  },[onClose])
+  return <div className="profile-v2-modal-backdrop" onClick={onClose}>
+    <div className="profile-v2-modal" role="dialog" aria-modal="true" aria-label={"Profile of @"+handle}
+      onClick={event=>event.stopPropagation()}>
+      <div className="profile-v2-modal-toolbar">
+        <button type="button" className="btn btn-quiet" onClick={onClose}>← Back to results</button>
+        <span>DISCOVER / MEMBER PROFILE</span>
+        <button type="button" className="profile-v2-close" onClick={onClose} aria-label="Close profile preview">×</button>
+      </div>
+      {data?<MemberCard data={data} actions={<>
+        <button type="button" className="btn btn-red" disabled={busy} onClick={onInvite}>Send invitation ↗</button>
+        <span className="profile-v2-action-hint">They must accept before connecting.</span>
+      </>}/>:
+      <div className="profile-v2-modal-message">{error?
+        <><h2>Profile unavailable</h2><p>{error}</p></>:
+        <><h2>Loading profile…</h2><p>Checking what this member has chosen to share.</p></>}
+      </div>}
+    </div>
+  </div>
+}
+
 function tags(input:string):string[]{
   return input.split(",").map(s=>s.trim()).filter(Boolean)
 }
