@@ -72,12 +72,12 @@ export async function GET(req:Request){
     const settings={...defaults,...p}
     const result:{profile:unknown;stats?:ShowcaseStats;badges?:unknown;activity?:unknown}={
       profile:{
-        handle:p.handle,role:p.role,bio:p.bio,displayName:settings.display_name,
-        tagline:settings.tagline,likes:settings.likes,dislikes:settings.dislikes,
-        dedication:settings.dedication,boundaries:settings.boundaries,
+        handle:p.handle,role:p.role,bio:p.bio,displayName:settings.display_name??"",
+        tagline:settings.tagline??"",likes:settings.likes??[],dislikes:settings.dislikes??[],
+        dedication:settings.dedication??"",boundaries:settings.boundaries??"",
         discoverable:p.discoverable,
-        showcaseEnabled:settings.showcase_enabled,showStats:settings.show_stats,
-        showAchievements:settings.show_achievements,showActivity:settings.show_activity,
+        showcaseEnabled:settings.showcase_enabled??false,showStats:settings.show_stats??false,
+        showAchievements:settings.show_achievements??false,showActivity:settings.show_activity??false,
         updatedAt:p.updated_at
       }
     }
