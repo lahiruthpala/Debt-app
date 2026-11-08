@@ -77,20 +77,26 @@ export async function GET(req:Request){
     const sceneId=checked(uuid,new URL(req.url).searchParams.get("sceneId"))
     db=await getPool().connect()
     const {scene,modules}=await access(db,sceneId,player.id)
-    const [state,requests,entries,readyLockProofs,approvedLocks]=await Promise.all([
-      db.query("SELECT module_id,locked_since,permission_status,release_last_at,updated_at FROM contract_boundary_state WHERE scene_id=$1",[sceneId]),
-      db.query("SELECT r.id,r.module_id,r.kind,r.status,r.note,r.response,r.created_at,r.reviewed_at,p.handle AS requester_handle "+
-        "FROM contract_boundary_requests r JOIN profiles p ON p.id=r.requester_id "+
-        "WHERE r.scene_id=$1 ORDER BY r.created_at DESC LIMIT 50",[sceneId]),
-      db.query("SELECT j.id,j.module_id,j.body,j.reply,j.created_at,j.replied_at,p.handle AS author_handle "+
-        "FROM contract_private_journal j JOIN profiles p ON p.id=j.author_id "+
-        "WHERE j.scene_id=$1 ORDER BY j.created_at DESC LIMIT 40",[sceneId]),
-      db.query("SELECT id,module_id FROM proof_submissions WHERE scene_id=$1 AND submitter_id=$2 "+
-        "AND kind='lock' AND status='pending' AND lock_request_id IS NULL "+
-        "AND deleted_at IS NULL AND blob_path IS NOT NULL ORDER BY created_at DESC",[sceneId,player.id]),
-      db.query("SELECT DISTINCT module_id FROM contract_boundary_requests "+
-        "WHERE scene_id=$1 AND kind='lock' AND status='approved'",[sceneId])
-    ])
+    // A pg PoolClient can only execute one query at a time. Parallel calls here
+    // caused pg's "client.query() while already executing" deprecation warning
+    // and will stop working under pg 9. Serialize on the checked-out client.
+    const state=await db.query(
+      "SELECT module_id,locked_since,permission_status,release_last_at,updated_at FROM contract_boundary_state WHERE scene_id=$1",[sceneId])
+    const requests=await db.query(
+      "SELECT r.id,r.module_id,r.kind,r.status,r.note,r.response,r.created_at,r.reviewed_at,p.handle AS requester_handle "+
+      "FROM contract_boundary_requests r JOIN profiles p ON p.id=r.requester_id "+
+      "WHERE r.scene_id=$1 ORDER BY r.created_at DESC LIMIT 50",[sceneId])
+    const entries=await db.query(
+      "SELECT j.id,j.module_id,j.body,j.reply,j.created_at,j.replied_at,p.handle AS author_handle "+
+      "FROM contract_private_journal j JOIN profiles p ON p.id=j.author_id "+
+      "WHERE j.scene_id=$1 ORDER BY j.created_at DESC LIMIT 40",[sceneId])
+    const readyLockProofs=await db.query(
+      "SELECT id,module_id FROM proof_submissions WHERE scene_id=$1 AND submitter_id=$2 "+
+      "AND kind='lock' AND status='pending' AND lock_request_id IS NULL "+
+      "AND deleted_at IS NULL AND blob_path IS NOT NULL ORDER BY created_at DESC",[sceneId,player.id])
+    const approvedLocks=await db.query<{module_id:string}>(
+      "SELECT DISTINCT module_id FROM contract_boundary_requests "+
+      "WHERE scene_id=$1 AND kind='lock' AND status='approved'",[sceneId])
     return json({status:scene.status,state:state.rows,requests:requests.rows,entries:entries.rows,
       readyLockProofs:readyLockProofs.rows,
       approvedLockModules:approvedLocks.rows.map(row=>row.module_id),
