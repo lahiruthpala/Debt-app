@@ -58,10 +58,10 @@ function paymentTestPdf():Buffer {
   ]
   let data="%PDF-1.4\n"
   const offsets=[0]
-  for(const [i,object] of objects.entries()){
+  objects.forEach((object,i)=>{
     offsets.push(Buffer.byteLength(data))
     data+=(i+1)+" 0 obj\n"+object+"\nendobj\n"
-  }
+  })
   const xref=Buffer.byteLength(data)
   data+="xref\n0 4\n0000000000 65535 f \n"
   for(const offset of offsets.slice(1))data+=String(offset).padStart(10,"0")+" 00000 n \n"
