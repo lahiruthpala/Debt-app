@@ -1,4 +1,4 @@
-import { contractDefinitionSchema, type ContractDefinition } from "./contract-rules"
+import { contractDefinitionSchema, type ContractDefinition } from "./contract-rules.ts"
 
 /**
  * First-party curated recipes: public, immutable and safe to customize.
