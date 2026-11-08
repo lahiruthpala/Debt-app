@@ -267,7 +267,7 @@ export default function Dashboard() {
                 <h3>Simulated payments <span className="mini-label">NO MONEY SENT</span></h3>
                 <p className="muted">Credits clear penalties first, then interest, then principal. The ledger is imaginary.</p>
                 {ownRole==="sub"&&active&&<div className="proof-inline">
-                  <p className="muted">Enter an amount and attach payment proof. Your connected Dom must approve the submission before any fictional credits reduce the balance.</p>
+                  <p className="muted">Enter an amount and attach a payment proof image or PDF. Your connected Dom must approve the submission before any fictional credits reduce the balance.</p>
                   <ProofUploader sceneId={selected} kind="payment" amount={credit} onAmountChange={setCredit} onNotify={notify} onUploaded={refresh}/>
                 </div>}
                 {ownRole==="sub"&&!active&&<p className="muted">Activate the scene to submit a payment for review.</p>}

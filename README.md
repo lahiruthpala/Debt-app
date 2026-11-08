@@ -101,7 +101,7 @@ Templates can be published, discovered and adapted by anyone with an adult profi
 
 Module cooldowns use server time; zero cooldown is available for dice/wheels but a 40-action-per-day safety cap still applies. Charges are capped, all outcomes are server-generated, and actions are logged. No arbitrary user code, external payments, background punishments or public visitor control is implemented. This is not a legal debt contract or financial service.
 
-## Private photo proofs
+## Private proof files
 
 Connect a **Private** Vercel Blob store to this project. The store must provide
 `BLOB_READ_WRITE_TOKEN` or project-scoped Vercel Blob OIDC access at runtime.
@@ -115,15 +115,20 @@ The Dom approves or declines it in Proof Center; only approval sets the
 self-reported status to locked. Subs can request unlock review, and Dom
 approval clears the reported status. Task images remain optional.
 From **Overview**, a Sub enters the simulated credit amount and attaches a
-non-explicit payment proof image. The Dom must approve the submission before
+non-explicit payment proof image (JPEG, PNG, WebP; max 3 MB) or PDF (max 4 MB).
+The Dom downloads PDFs through an authenticated, no-cache endpoint;
+PDFs are forced downloads, not rendered inline. The Dom must approve the submission before
 the fictional balance changes; there is no direct Apply credit button. From **Game room**, a Sub may attach evidence for
-an open challenge. The connected Dom reviews photos in **Proof Center**.
+an open challenge. The connected Dom reviews evidence in **Proof Center**.
 
 - Only approved, active scene participants can upload. Only the uploader and
   connected partner may view the image; ex-partners lose access. Uploaders retain
   access to delete their own photos after ending a connection.
-- Each image is limited to 3 MB, decoded and re-encoded as WebP to remove
-  image metadata; there are daily and pending-submission rate limits.
+- Images are limited to 3 MB, decoded and re-encoded as WebP to remove
+  image metadata. Payment PDFs are limited to 4 MB and checked for basic PDF
+  structure; unlike images, PDFs retain their original contents and metadata.
+  PDF files are download-only to avoid executing untrusted content in-page.
+  Daily and pending-submission rate limits still apply.
 - The Sub confirms consent and that the photo is non-explicit. Do not upload
   intimate images, IDs, address details, or images of anyone without permission.
 - Approval of a photo-backed task, challenge, or simulated payment applies the
@@ -143,7 +148,7 @@ an open challenge. The connected Dom reviews photos in **Proof Center**.
 - Only the uploader can erase the private Blob image. A small audit record and
   any settled fictional ledger event remain, without the image's Blob pathname.
 
-The API never returns a raw Blob URL; images are streamed through an
+The API never returns a raw Blob URL; private proof files are streamed through an
 authenticated, no-cache endpoint. The server upload is deliberately capped
 below Vercel Functions' request-size limit. If the store was created as
 **Public**, create/connect a **Private** store before using this feature.

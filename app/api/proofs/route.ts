@@ -6,7 +6,7 @@ import {z} from "zod"
 import {getAuth} from "@/lib/auth"
 import {getPool} from "@/lib/db"
 import {applyCredit} from "@/lib/ledger"
-import {canReviewProof,isAllowedImageType,maxProofBytes,proofReviewOutcome,type ProofKind,type ProofStatus} from "@/lib/proof-rules"
+import {canReviewProof,isAllowedImageType,isAllowedProofType,isValidPaymentPdf,maxProofBytes,maxPaymentPdfBytes,paymentPdfType,proofReviewOutcome,type ProofKind,type ProofStatus} from "@/lib/proof-rules"
 
 export const runtime="nodejs"
 export const dynamic="force-dynamic"
@@ -102,11 +102,11 @@ function failed(error:unknown){
 }
 type ProofRow={
  id:string;scene_id:string;submitter_id:string;kind:ProofKind;module_id:string|null;
- claim_id:string|null;challenge_id:string|null;amount:number|null;blob_path:string|null;lock_request_id:string|null;status:ProofStatus;deleted_at:string|null
+ claim_id:string|null;challenge_id:string|null;amount:number|null;blob_path:string|null;content_type:string;lock_request_id:string|null;status:ProofStatus;deleted_at:string|null
 }
 async function findProof(db:PoolClient,id:string,userId:string,lock=false):Promise<ProofRow>{
   const {rows}=await db.query(
-    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.blob_path,p.lock_request_id,p.status,p.deleted_at "+
+    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.blob_path,p.content_type,p.lock_request_id,p.status,p.deleted_at "+
     "FROM proof_submissions p JOIN scenes s ON s.id=p.scene_id "+
     "JOIN connections c ON c.id=s.connection_id "+
     "WHERE p.id=$1 AND (c.sender_id=$2 OR c.recipient_id=$2) "+(lock?"FOR UPDATE OF p":""),
@@ -118,24 +118,33 @@ export async function GET(req:Request){
   try{
     const actor=await identity(req)
     const url=new URL(req.url)
-    if(url.searchParams.get("view")==="image"){
+    if(url.searchParams.get("view")==="image"||url.searchParams.get("view")==="file"){
+      const view=url.searchParams.get("view")
       const id=parsed(uuid,url.searchParams.get("id"))
       const db=await getPool().connect()
       let path:string
+      let pdf=false
       try{
         const proof=await findProof(db,id,actor.id)
         const scene=await sceneFor(db,proof.scene_id,actor.id)
         if((scene.connection_state!=="active"&&proof.submitter_id!==actor.id)||proof.deleted_at||!proof.blob_path)
-          throw new ProofError(404,"Image is no longer available")
+          throw new ProofError(404,"Proof file is no longer available")
+        pdf=proof.kind==="payment"&&proof.content_type===paymentPdfType
+        if((pdf&&view!=="file")||(!pdf&&view!=="image"))
+          throw new ProofError(404,"Unsupported proof file view")
         path=proof.blob_path
       }finally{db.release()}
       const result=await get(path,{access:"private"})
-      if(!result||result.statusCode!==200)throw new ProofError(404,"Image is no longer available")
+      if(!result||result.statusCode!==200)throw new ProofError(404,"Proof file is no longer available")
       return new Response(result.stream,{
         status:200,headers:{
-          "Content-Type":"image/webp","Content-Disposition":"inline; filename=proof.webp",
+          "Content-Type":pdf?paymentPdfType:"image/webp",
+          // Untrusted PDFs must be downloaded, never embedded as active inline content.
+          "Content-Disposition":pdf?'attachment; filename="payment-proof.pdf"':'inline; filename="proof.webp"',
+          "Content-Security-Policy":"sandbox; default-src 'none'; frame-ancestors 'none'",
           "Cache-Control":"private, no-store, max-age=0",
-          "X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer"
+          "X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer",
+          "X-Frame-Options":"DENY"
         }
       })
     }
@@ -148,7 +157,7 @@ export async function GET(req:Request){
       if(scene.connection_state!=="active"&&actor.role!=="sub")
         throw new ProofError(403,"This connection is no longer active")
       const {rows}=await db.query(
-        "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.note,p.status,"+
+        "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.note,p.content_type,p.status,"+
         "p.created_at,p.reviewed_at,p.review_note,p.deleted_at,p.lock_request_id,u.handle AS submitter_handle,"+
         "r.handle AS reviewer_handle,p.submitter_id "+
         "FROM proof_submissions p JOIN profiles u ON u.id=p.submitter_id "+
@@ -169,7 +178,7 @@ export async function POST(req:Request){
     sameOrigin(req)
     const actor=await identity(req)
     if(actor.role!=="sub")throw new ProofError(403,"Only the Sub can submit private evidence")
-    const form=await req.formData().catch(()=>{throw new ProofError(400,"Provide an image upload")})
+    const form=await req.formData().catch(()=>{throw new ProofError(400,"Provide a proof file upload")})
     const sceneId=parsed(uuid,form.get("sceneId"))
     const kind=parsed(proofKind,form.get("kind"))
     const moduleId=kind==="lock"?parsed(uuid,form.get("moduleId")):null
@@ -177,11 +186,15 @@ export async function POST(req:Request){
     const challengeId=kind==="challenge"?parsed(uuid,form.get("challengeId")):null
     const amount=kind==="payment"?parsed(z.coerce.number().int().min(1).max(100000),form.get("amount")):null
     const note=parsed(noteSchema,form.get("note")||"")
-    if(form.get("consent")!=="yes")throw new ProofError(400,"Confirm that your image is non-explicit and shared voluntarily")
+    if(form.get("consent")!=="yes")throw new ProofError(400,"Confirm that your evidence is shared voluntarily and contains no sensitive personal details")
     const file=form.get("file")
-    if(!(file instanceof File)||file.size<1||file.size>maxProofBytes)
-      throw new ProofError(400,"Select an image smaller than 3 MB")
-    if(!isAllowedImageType(file.type))throw new ProofError(400,"Only JPEG, PNG and WebP images are allowed")
+    if(!(file instanceof File))throw new ProofError(400,"Select a proof file")
+    const isPdf=kind==="payment"&&file.type===paymentPdfType
+    const limit=isPdf?maxPaymentPdfBytes:maxProofBytes
+    if(file.size<1||file.size>limit)
+      throw new ProofError(400,isPdf?"Select a PDF smaller than 4 MB":"Select an image smaller than 3 MB")
+    if(!isAllowedProofType(kind,file.type))
+      throw new ProofError(400,kind==="payment"?"Only JPEG, PNG, WebP and PDF payment proofs are allowed":"Only JPEG, PNG and WebP images are allowed")
 
     // Check authorization and rate limits before processing and uploading bytes.
     const pre=await getPool().connect()
@@ -193,21 +206,30 @@ export async function POST(req:Request){
       if(daily.rows[0].count>=12)throw new ProofError(429,"You can upload at most 12 proofs per day")
     }finally{pre.release()}
 
-    // Re-encoding removes location/EXIF metadata, strips active or embedded
-    // payloads and normalizes images to one private WebP representation.
+    // Image evidence is decoded and re-encoded as WebP to remove EXIF metadata.
+    // Payment PDFs are structure-checked, retained as PDFs and served download-only.
     const source=Buffer.from(await file.arrayBuffer())
-    const image=sharp(source,{limitInputPixels:20_000_000})
-    const metadata=await image.metadata().catch(()=>{throw new ProofError(400,"Image could not be decoded")})
-    const expectedFormat:Record<string,string>={"image/jpeg":"jpeg","image/png":"png","image/webp":"webp"}
-    if(metadata.format!==expectedFormat[file.type])throw new ProofError(400,"Image format does not match the uploaded file type")
-    if(!["jpeg","png","webp"].includes(metadata.format||""))
-      throw new ProofError(400,"The file is not a supported image")
-    const data=await image.rotate().resize(1600,1600,{fit:"inside",withoutEnlargement:true})
-      .webp({quality:82}).toBuffer()
-    if(data.length<1||data.length>maxProofBytes)throw new ProofError(400,"Processed image exceeds the 3 MB limit")
+    let data:Buffer
+    let storedType:string
+    let extension:string
+    if(isPdf){
+      if(!isValidPaymentPdf(source))throw new ProofError(400,"The file is not a valid PDF document")
+      data=source;storedType=paymentPdfType;extension="pdf"
+    }else{
+      const image=sharp(source,{limitInputPixels:20_000_000})
+      const metadata=await image.metadata().catch(()=>{throw new ProofError(400,"Image could not be decoded")})
+      const expectedFormat:Record<string,string>={"image/jpeg":"jpeg","image/png":"png","image/webp":"webp"}
+      if(metadata.format!==expectedFormat[file.type])throw new ProofError(400,"Image format does not match the uploaded file type")
+      if(!["jpeg","png","webp"].includes(metadata.format||""))
+        throw new ProofError(400,"The file is not a supported image")
+      data=await image.rotate().resize(1600,1600,{fit:"inside",withoutEnlargement:true})
+        .webp({quality:82}).toBuffer()
+      if(data.length<1||data.length>maxProofBytes)throw new ProofError(400,"Processed image exceeds the 3 MB limit")
+      storedType="image/webp";extension="webp"
+    }
     const proofId=randomUUID()
-    const blob=await put("private-proofs/"+proofId+".webp",data,{
-      access:"private",contentType:"image/webp",addRandomSuffix:false
+    const blob=await put("private-proofs/"+proofId+"."+extension,data,{
+      access:"private",contentType:storedType,addRandomSuffix:false
     })
     uploaded=blob.pathname
 
@@ -222,9 +244,9 @@ export async function POST(req:Request){
       "SELECT count(*)::int AS count FROM proof_submissions WHERE scene_id=$1 AND status='pending' AND deleted_at IS NULL",[sceneId])
     if(pending.rows[0].count>=20)throw new ProofError(429,"Too many proofs are waiting for review")
     await db.query(
-      "INSERT INTO proof_submissions(id,scene_id,submitter_id,kind,module_id,claim_id,challenge_id,amount,note,blob_path,bytes) "+
-      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-      [proofId,sceneId,actor.id,kind,moduleId,claimId,challengeId,amount,note,uploaded,data.length])
+      "INSERT INTO proof_submissions(id,scene_id,submitter_id,kind,module_id,claim_id,challenge_id,amount,note,blob_path,bytes,content_type) "+
+      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+      [proofId,sceneId,actor.id,kind,moduleId,claimId,challengeId,amount,note,uploaded,data.length,storedType])
     await db.query("COMMIT");transaction=false
     inserted=true
     return json({id:proofId,message:kind==="lock"?
