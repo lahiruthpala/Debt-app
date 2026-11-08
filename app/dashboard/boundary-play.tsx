@@ -49,9 +49,24 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       .then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||"Could not load");return body})
       .then(body=>{if(live)setData(body)})
       .catch(error=>{if(live)onNotify("error",message(error))})
-    const onProofsUpdated=()=>{if(live)void reload().catch(error=>onNotify("error",message(error)))}
-    window.addEventListener("private-proofs-updated",onProofsUpdated)
-    return ()=>{live=false;window.removeEventListener("private-proofs-updated",onProofsUpdated)}
+    const update=()=>{
+      if(!live||document.visibilityState==="hidden")return
+      void fetch("/api/contract-boundaries?"+new URLSearchParams({sceneId}),{cache:"no-store"})
+        .then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error||"Could not refresh");return body})
+        .then(body=>{if(live)setData(body)})
+        .catch(error=>{if(live)onNotify("error",message(error))})
+    }
+    const onVisibility=()=>{if(document.visibilityState==="visible")update()}
+    const interval=window.setInterval(update,15000)
+    window.addEventListener("focus",update)
+    document.addEventListener("visibilitychange",onVisibility)
+    window.addEventListener("private-proofs-updated",update)
+    return ()=>{
+      live=false;window.clearInterval(interval)
+      window.removeEventListener("focus",update)
+      document.removeEventListener("visibilitychange",onVisibility)
+      window.removeEventListener("private-proofs-updated",update)
+    }
   },[sceneId,sceneStatus,available.length])
   async function perform(payload:Record<string,unknown>){
     if(working)return
@@ -96,6 +111,10 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       const readyLockProof=data?.readyLockProofs?.find(p=>p.module_id===module.id)
       const pendingLock=requests.some(r=>r.kind==="lock"&&r.status==="pending")
       const pendingUnlock=requests.some(r=>r.kind==="unlock"&&r.status==="pending")
+      const lockActive=Boolean(state?.locked_since)
+      const lockPhase=lockActive?"locked":pendingLock?"pending":readyLockProof?"ready":"upload"
+      const photoReady=Boolean(readyLockProof)||pendingLock||lockActive
+      const requestSent=pendingLock||lockActive
       const isLock=module.type==="lock"
       const isPermission=module.type==="permission"
       const isJournal=module.type==="journal"
@@ -103,7 +122,7 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
       return <article key={module.id} className={"boundary-card boundary-"+module.type}>
         <header className="boundary-card-title">
           <div className="boundary-emblem" aria-hidden="true">{isLock?"♢":isPermission?"◈":isJournal?"✒":"▦"}</div>
-          <div><span className="eyebrow">{isLock?"01 · LOCK STATUS":isPermission?"02 · PERSONAL PERMISSION":isJournal?"03 · PRIVATE JOURNAL":"04 · RESTRICTION CALENDAR"}</span><h3>{module.name}</h3></div>
+          <div><span className="eyebrow">{isLock?"01 · LOCK STATUS / REVIEW FLOW V3":isPermission?"02 · PERSONAL PERMISSION":isJournal?"03 · PRIVATE JOURNAL":"04 · RESTRICTION CALENDAR"}</span><h3>{module.name}</h3></div>
           <span className={"boundary-state-pill "+(!active?"is-paused":"")}>{sceneStatus.toUpperCase()}</span>
         </header>
         {isLock&&<div className="boundary-content">
@@ -112,23 +131,53 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
             <div><small>DAYS REPORTED</small><strong>{daysSince(state?.locked_since||null)}</strong></div>
             <div><small>PLANNED DURATION</small><strong>{module.suggestedDays} days</strong></div>
           </div>
-          <p className="boundary-description">Keyholder label: <b>{module.keyholderLabel}</b>. Planned duration: {module.suggestedDays} days. Lock status updates only after the Dom reviews a non-explicit photo. No device is controlled by this app.</p>
-          {role==="sub"&&!state?.locked_since&&active&&!pendingLock&&!readyLockProof&&<div className="proof-inline">
-            <p className="boundary-footnote">Upload a non-explicit lock photo first. Request lock stays disabled until the image is stored privately.</p>
-            <ProofUploader sceneId={sceneId} kind="lock" moduleId={module.id}
+          <div className={"lock-review-banner is-"+(pendingUnlock?"unlock-pending":lockPhase)} aria-live="polite">
+            <span className="lock-review-glyph" aria-hidden="true">{lockActive?"✓":pendingLock?"◷":readyLockProof?"✓":"↑"}</span>
+            <div>
+              <strong>{pendingUnlock?"Unlock request awaiting Dom review":lockActive?"Lock status approved":pendingLock?"Waiting for Dom approval":readyLockProof?"Lock photo uploaded — ready to request":"Start a new lock request"}</strong>
+              <p>{pendingUnlock?"The Dom may approve or decline your reported unlock. You can physically unlock or end the scene at any time.":lockActive?"The reported lock was accepted. The Sub may now request an unlock review.":pendingLock?"Your photo was submitted with the lock request. The app will not show Locked unless the Dom approves.":readyLockProof?"The image is stored privately. Request lock to send it to your Dom for review.":"Upload a non-explicit image first. Request lock stays disabled until the private upload succeeds."}</p>
+            </div>
+          </div>
+          <div className="lock-progress" aria-label="Lock approval steps">
+            <div className={"lock-progress-step "+(photoReady?"is-complete":"is-current")}>
+              <span aria-hidden="true">{photoReady?"✓":"1"}</span>
+              <div><strong>Photo evidence</strong><small>{photoReady?"Uploaded privately":"Required before requesting"}</small></div>
+            </div>
+            <div className={"lock-progress-step "+(requestSent?"is-complete":readyLockProof?"is-current":"")}>
+              <span aria-hidden="true">{requestSent?"✓":"2"}</span>
+              <div><strong>Request lock</strong><small>{requestSent?"Sent to Dom":readyLockProof?"Ready to submit":"Waiting for photo"}</small></div>
+            </div>
+            <div className={"lock-progress-step "+(lockActive?"is-complete":pendingLock?"is-current":"")}>
+              <span aria-hidden="true">{lockActive?"✓":"3"}</span>
+              <div><strong>Dom decision</strong><small>{lockActive?"Approved":pendingLock?"Review pending":"Required to mark locked"}</small></div>
+            </div>
+          </div>
+          <p className="boundary-description">Keyholder: <b>{module.keyholderLabel}</b>. Planned duration: {module.suggestedDays} days. This app records an agreement status; it does not control a device.</p>
+          {role==="sub"&&!lockActive&&active&&!pendingLock&&!readyLockProof&&<div className="proof-inline lock-photo-panel">
+            <div className="lock-step-heading"><strong>Step 1 · Upload your lock photo</strong><small>Private, non-explicit image. JPEG / PNG / WebP up to 3 MB.</small></div>
+            <ProofUploader sceneId={sceneId} kind="lock" moduleId={module.id} hideNote
               onNotify={onNotify} onUploaded={async()=>{await reload();await onChanged()}}/>
           </div>}
-          {role==="sub"&&<div className="boundary-actions">
-            {!state?.locked_since&&<button className="btn btn-red" disabled={!active||working||!readyLockProof||pendingLock}
-              onClick={()=>void perform({action:"request_lock",moduleId:module.id,proofId:readyLockProof?.id,note})}>Request lock</button>}
-            {Boolean(state?.locked_since)&&<button className="btn btn-red" disabled={!active||working||pendingUnlock}
+          {role==="sub"&&!lockActive&&active&&Boolean(readyLockProof)&&!pendingLock&&
+            <div className="lock-ready-detail"><strong>Photo saved privately</strong><span>Your Dom cannot approve until you submit the lock request.</span>
+              <a href="#proof-center">Manage uploaded photo</a>
+            </div>}
+          {role==="sub"&&<div className="boundary-actions lock-primary-actions">
+            {!lockActive&&<button className="btn btn-red" disabled={!active||working||!readyLockProof||pendingLock}
+              onClick={()=>void perform({action:"request_lock",moduleId:module.id,proofId:readyLockProof?.id,note})}>Request lock for Dom approval</button>}
+            {lockActive&&<button className="btn btn-red" disabled={!active||working||pendingUnlock}
               onClick={()=>void perform({action:"request_unlock",moduleId:module.id,note})}>Request unlock review</button>}
           </div>}
-          {role==="sub"&&readyLockProof&&!pendingLock&&<p className="boundary-footnote">Photo uploaded. Select Request lock to ask your Dom to approve it.</p>}
-          {pendingLock&&<p className="boundary-footnote">Lock request awaiting Dom photo approval. Status remains unlocked until then.</p>}
-          {pendingUnlock&&<p className="boundary-footnote">Unlock request awaiting Dom decision. You may physically unlock or end the scene at any time.</p>}
-          {role==="dom"&&<button className="btn btn-outline" disabled={!active||working}
-            onClick={()=>void perform({action:"request_inspection",moduleId:module.id,note})}>Request private text check-in</button>}
+          {pendingLock&&role==="dom"&&<div className="lock-dom-review">
+            <strong>Lock request needs your decision</strong>
+            <p>Review the Sub's private photo, then approve or reject the lock request in Proof Center.</p>
+            <a className="btn btn-red" href="#proof-center">Review lock photo ↓</a>
+          </div>}
+          {pendingUnlock&&role==="dom"&&<p className="lock-dom-review">An unlock request is pending. Approve or decline it in Requests & decisions below.</p>}
+          {role==="dom"&&<div className="boundary-actions">
+            <button className="btn btn-outline" disabled={!active||working}
+              onClick={()=>void perform({action:"request_inspection",moduleId:module.id,note})}>Request private text check-in</button>
+          </div>}
           <p className="boundary-footnote">Self-reported status is voluntary. You can unlock or stop participation without permission or a debt charge.</p>
         </div>}
         {isPermission&&<div className="boundary-content">
@@ -163,7 +212,7 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
           {requests.length>0&&<div className="boundary-requests">
             <h4>Requests & decisions</h4>
             {requests.slice(0,12).map(request=><div key={request.id} className="boundary-request">
-              <div><strong>{request.kind.replace("_"," ")} · {request.status}</strong>
+              <div><strong>{request.kind==="lock"?"Lock":request.kind==="unlock"?"Unlock":request.kind.replace("_"," ")} · {request.status}</strong>
                 <small>by @{request.requester_handle} · {new Date(request.created_at).toLocaleString("en-GB")}</small>
                 {request.note&&<p>{request.note}</p>}{request.response&&<p>Reply: {request.response}</p>}
               </div>
