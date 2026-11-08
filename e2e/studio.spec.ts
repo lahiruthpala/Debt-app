@@ -173,15 +173,25 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     expect((await hidden.json()).games).toHaveLength(0)
     await visit(subPage, "Overview")
 
-    // All simulated credits are recorded, never real payments.
-    await subPage.getByRole("button", { name: "Apply credit" }).click()
-    await expect(subPage.getByRole("status")).toContainText("Applied 15,000 simulated credits")
-    await expect(subPage.locator(".big-balance")).toHaveText("LKR 235,000", { timeout: 30_000 })
-    await expect(subPage.getByText(/Fictional payment credit applied/)).toBeVisible()
+    // Payments require image evidence and Dom approval, even for direct API calls.
+    await expect(subPage.getByRole("button", { name: "Apply credit" })).toHaveCount(0)
+    const paymentForm = subPage.locator('.dash-card:has-text("Simulated payments") .proof-uploader')
+    await expect(paymentForm.getByLabel("Simulated credit amount")).toHaveValue("15000")
+    await expect(paymentForm.getByRole("button", { name: /Submit for review/ })).toBeDisabled()
     const scenesResponse = await subPage.request.get("/api/studio?view=scenes")
     expect(scenesResponse.status()).toBe(200)
-    const sceneId = (await scenesResponse.json()).scenes[0].id
+    const originalScene = (await scenesResponse.json()).scenes[0]
+    const sceneId = originalScene.id
     expect(sceneId).toBeTruthy()
+    const noProofPayment = await subPage.request.post("/api/studio", {
+      headers: { origin: apiOrigin },
+      data: { action: "scene", sceneId, operation: "payment", amount: 15000 },
+    })
+    expect(noProofPayment.status()).toBe(409)
+    expect((await noProofPayment.json()).error).toMatch(/photo proof and Dom approval/)
+    const unchangedScene = (await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    expect([unchangedScene.principal,unchangedScene.interest,unchangedScene.penalties])
+      .toEqual([originalScene.principal,originalScene.interest,originalScene.penalties])
 
     // Dom-only operation and cooldown: a second fee is rejected.
     await domPage.reload()

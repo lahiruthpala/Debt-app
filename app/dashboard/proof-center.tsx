@@ -22,18 +22,20 @@ async function apiProof(input:Record<string,unknown>,method:"PATCH"|"DELETE"){
 }
 
 /** Evidence is opt-in and non-explicit. No photo can override consent or stop a scene ending. */
-export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,onNotify,onUploaded}:{
+export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,onAmountChange,onNotify,onUploaded}:{
  sceneId:string;kind:ProofKind;moduleId?:string;claimId?:string;challengeId?:string;amount?:number;
- onNotify:Feedback;onUploaded?:()=>Promise<void>|void
+ onAmountChange?:(amount:number)=>void;onNotify:Feedback;onUploaded?:()=>Promise<void>|void
 }){
  const [file,setFile]=useState<File|null>(null)
  const [note,setNote]=useState("")
  const [confirmed,setConfirmed]=useState(false)
  const [working,setWorking]=useState(false)
  const inputRef=useRef<HTMLInputElement|null>(null)
+ const invalidPayment=kind==="payment"&&(amount===undefined||!Number.isInteger(amount)||amount<1||amount>100000)
  async function submit(event:FormEvent){
    event.preventDefault()
    if(working||!file||!confirmed)return
+   if(invalidPayment){onNotify("error","Enter an amount between 1 and 100,000 simulated credits.");return}
    if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>maxProofBytes){
      onNotify("error","Choose a JPEG, PNG or WebP photo smaller than 3 MB.");return
    }
@@ -62,8 +64,12 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
    finally{setWorking(false)}
  }
  return <form className="proof-uploader" onSubmit={e=>void submit(e)}>
-   <label className="proof-input-label">Attach optional private photo
-     <input ref={inputRef} aria-label={"Proof image for "+titles[kind]} type="file"
+   {kind==="payment"&&<label className="proof-input-label">Simulated credit amount (LKR)
+     <input aria-label="Simulated credit amount" type="number" min={1} max={100000} step={1} required
+       value={amount??""} onChange={e=>onAmountChange?.(Number(e.target.value))}/>
+   </label>}
+   <label className="proof-input-label">{kind==="payment"?"Attach payment proof image":"Attach optional private photo"}
+     <input ref={inputRef} aria-label={"Proof image for "+titles[kind]} type="file" required={kind==="payment"}
        accept="image/jpeg,image/png,image/webp"
        onChange={e=>setFile(e.target.files?.[0]||null)}/>
    </label>
@@ -77,7 +83,7 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
    </label>
    <div className="proof-uploader-footer">
      <span>JPEG / PNG / WebP · maximum 3 MB · stored privately, metadata removed</span>
-     <button type="submit" className="btn btn-outline" disabled={!file||!confirmed||working||!sceneId}>
+     <button type="submit" className="btn btn-outline" disabled={!file||!confirmed||working||!sceneId||invalidPayment}>
        {working?"Uploading…":"Submit for review ↗"}
      </button>
    </div>
