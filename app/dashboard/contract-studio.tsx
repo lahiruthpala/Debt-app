@@ -2,6 +2,7 @@
 import {useEffect,useState,type FormEvent} from "react"
 import type {ContractDefinition,ContractModule} from "@/lib/contract-rules"
 import BoundaryPlay from "./boundary-play"
+import ProofCenter,{ProofUploader} from "./proof-center"
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Connection={id:string;state:string;other_handle:string}
@@ -59,8 +60,8 @@ const isGameModule=(m:ContractModule):m is Extract<ContractModule,{type:"dice"|"
   ["dice","wheel","random","checkin","tasks"].includes(m.type)
 const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
 
-export default function ContractStudio({connections,role,onNotify,onChanged}:{
- connections:Connection[];role:"dom"|"sub";onNotify:Feedback;onChanged:()=>Promise<void>
+export default function ContractStudio({connections,role,actorId,onNotify,onChanged}:{
+ connections:Connection[];role:"dom"|"sub";actorId:string;onNotify:Feedback;onChanged:()=>Promise<void>
 }){
   const [section,setSection]=useState<"builder"|"library"|"active">("builder")
   const [definition,setDefinition]=useState<ContractDefinition|null>(null)
@@ -427,6 +428,11 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
                   return <div className="contract-task" key={task.id}><div><b>{task.label}</b><small>{money(task.reward)} reward · {claim?.state||"not submitted"}</small></div>
                     {!claim&&role==="sub"&&<button className="btn btn-outline" disabled={!isPlayable||busy}
                       onClick={()=>void doAction({action:"claim",sceneId,moduleId:module.id,taskId:task.id})}>Submit</button>}
+                    {claim?.state==="pending"&&role==="sub"&&<div className="proof-inline">
+                      <p className="contract-hint">Optional photographic evidence: this task will only earn credits after your partner reviews it. If you upload evidence, review happens in Proof Center.</p>
+                      <ProofUploader sceneId={sceneId} kind="task" claimId={claim.id} onNotify={onNotify}
+                        onUploaded={async()=>{await loadDetails(sceneId)}}/>
+                    </div>}
                     {claim?.state==="pending"&&role==="dom"&&<div className="person-actions">
                       <button className="btn btn-red" disabled={!isPlayable||busy} onClick={()=>void doAction({action:"review",sceneId,claimId:claim.id,approve:true})}>Approve</button>
                       <button className="btn btn-quiet" disabled={!isPlayable||busy} onClick={()=>void doAction({action:"review",sceneId,claimId:claim.id,approve:false})}>Decline</button>
@@ -434,6 +440,8 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
                   </div>})}</div></>}
             </div>
           })}</div>
+          <ProofCenter sceneId={sceneId} actorId={actorId} role={role} onNotify={onNotify}
+            onChanged={async()=>{await Promise.all([loadScenes(),loadDetails(sceneId),onChanged()])}}/>
           <div className="dash-card contract-audit"><div className="section-title"><h2>Game action history</h2><button className="btn btn-quiet" onClick={()=>void loadDetails(sceneId)}>↻ Refresh</button></div>
             {!existing?.actions.length?<p className="muted">No game actions yet.</p>:existing.actions.map(a=><div key={a.id} className="timeline-row">
               <span className="event-icon">{a.delta<0?"−":a.delta>0?"+":"◇"}</span>

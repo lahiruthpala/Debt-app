@@ -1,6 +1,7 @@
 "use client"
 import {useEffect,useMemo,useState} from "react"
 import type {ContractModule} from "@/lib/contract-rules"
+import {ProofUploader} from "./proof-center"
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type BoundaryStatus={
@@ -111,6 +112,11 @@ export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,
             <button className="btn btn-red" disabled={!active||working} onClick={()=>void perform({action:"request_unlock",moduleId:module.id,note})}>Request unlock review</button>
           </div>}
           {role==="dom"&&<button className="btn btn-outline" disabled={!active||working} onClick={()=>void perform({action:"request_inspection",moduleId:module.id,note})}>Request private text check-in</button>}
+          {role==="sub"&&active&&Boolean(state?.locked_since)&&<div className="proof-inline">
+            <p className="boundary-footnote">You may optionally send a non-explicit lock-status image for partner verification. This never controls unlocking or ending the contract.</p>
+            <ProofUploader sceneId={sceneId} kind="lock" moduleId={module.id}
+              onNotify={onNotify} onUploaded={async()=>{await reload();await onChanged()}}/>
+          </div>}
           <p className="boundary-footnote">Self-reported status is voluntary. You can unlock or stop participation without permission or a debt charge.</p>
         </div>}
         {isPermission&&<div className="boundary-content">

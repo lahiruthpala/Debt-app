@@ -5,6 +5,7 @@ import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
+import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
 
 type Role = "dom" | "sub"
@@ -249,9 +250,14 @@ export default function Dashboard() {
                 <p className="muted">Credits clear penalties first, then interest, then principal. The ledger is imaginary.</p>
                 <div className="input-with-button"><input type="number" min={1} max={100000} value={credit} onChange={e=>setCredit(Number(e.target.value))} disabled={!active||ownRole!=="sub"}/>
                   <button className="btn btn-red" disabled={busy||!active||ownRole!=="sub"} onClick={()=>sceneAction("payment",credit)}>Apply credit</button></div>
+                {ownRole==="sub"&&active&&<div className="proof-inline">
+                  <p className="muted">Applying a credit without a photo records it immediately. Alternatively, attach optional private proof and wait for the connected Dom to approve before the fictional balance changes.</p>
+                  <ProofUploader sceneId={selected} kind="payment" amount={credit} onNotify={notify} onUploaded={refresh}/>
+                </div>}
                 {ownRole==="dom" && active && <div className="action-inline"><button disabled={busy} className="btn btn-quiet" onClick={()=>sceneAction("late_fee")}>+ Agreed late fee</button><button disabled={busy} className="btn btn-quiet" onClick={()=>sceneAction("interest")}>+ Monthly interest</button></div>}
               </div>
             </div>
+            <ProofCenter sceneId={selected} role={profile.role} actorId={me?.id||""} onNotify={notify} onChanged={refresh}/>
             <div className="dash-card"><h3>Ledger activity <span className="mini-label">AUDIT TRAIL</span></h3>
               {!currentDetails?.events?.length?<p className="muted">No recorded actions yet.</p>:<div className="timeline">{currentDetails.events.map(item=><div className="timeline-row" key={item.id}><span className="event-icon">{item.amount<0?"−":item.amount>0?"+":"◇"}</span><div className="event-copy"><b>{item.detail}</b><small>@{item.actor} · {date(item.created_at)}</small></div><strong className={item.amount<0?"green":"gold"}>{item.amount===0?"—":(item.amount>0?"+":"−")+money(Math.abs(item.amount))}</strong></div>)}</div>}
             </div></>}
@@ -279,7 +285,7 @@ export default function Dashboard() {
           </form>)}
         </>}
 
-        {tab==="contracts" && <ContractStudio connections={connections} role={profile.role} onNotify={notify} onChanged={refresh}/>}
+        {tab==="contracts" && <ContractStudio connections={connections} role={profile.role} actorId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
         {tab==="stories" && <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>}
         {tab==="games" && <>
           <div className="quick-room-intro"><div><span className="eyebrow">INSTANT PLAY · FICTIONAL CREDITS</span><h2>Pick a game. Play a round.</h2><p>Quick mini-games for an active connection, with clear outcomes and limited plays. For custom contracts or open-ended stories, use their separate workspaces.</p></div><div className="quick-room-links"><button type="button" className="btn btn-outline" onClick={()=>setTab("contracts")}>Contract studio ↗</button><button type="button" className="btn btn-outline" onClick={()=>setTab("stories")}>Story games ↗</button></div></div>
@@ -294,8 +300,13 @@ export default function Dashboard() {
             <div className="dash-card"><div className="section-title"><h2>Challenge board</h2><span>GAME 03 / CO-OP</span></div>
               <p className="muted">Doms issue preset non-financial tasks. Subs mark them complete to earn imaginary balance reductions. No real-world obligations are created.</p>
               {ownRole==="dom" && <div className="quest-compose"><select value={challengeIndex} onChange={e=>setChallengeIndex(Number(e.target.value))} disabled={!active}>{QUESTS.map((q,i)=><option key={q.title} value={i}>{q.title} · {q.reward.toLocaleString()} credits</option>)}</select><button className="btn btn-red" disabled={busy||!active} onClick={()=>act({action:"quest",sceneId:selected,index:challengeIndex})}>Issue challenge</button></div>}
-              {!currentDetails?.challenges.length?<div className="empty-inner">No challenges issued yet.</div>:<div className="quest-list">{currentDetails.challenges.map(c=><div className="quest" key={c.id}><div className="quest-symbol">◇</div><div className="quest-info"><b>{c.title}</b><small>{c.state==="completed"?"Completed · reward applied":"Open · pending sub completion"}</small></div><strong>−{money(c.reward)}</strong>{ownRole==="sub" && c.state==="open" && <button className="btn btn-outline" disabled={busy||!active} onClick={()=>act({action:"complete",sceneId:selected,challengeId:c.id})}>Complete</button>}</div>)}</div>}
+              {!currentDetails?.challenges.length?<div className="empty-inner">No challenges issued yet.</div>:<div className="quest-list">{currentDetails.challenges.map(c=><div className="quest" key={c.id}><div className="quest-symbol">◇</div><div className="quest-info"><b>{c.title}</b><small>{c.state==="completed"?"Completed · reward applied":"Open · pending sub completion"}</small></div><strong>−{money(c.reward)}</strong>{ownRole==="sub" && c.state==="open" && <button className="btn btn-outline" disabled={busy||!active} onClick={()=>act({action:"complete",sceneId:selected,challengeId:c.id})}>Complete</button>}
+                {ownRole==="sub"&&c.state==="open"&&active&&<div className="proof-inline quest-proof-inline">
+                  <p className="muted">Or submit an optional photo for review before applying the reward:</p>
+                  <ProofUploader sceneId={selected} kind="challenge" challengeId={c.id} onNotify={notify} onUploaded={refresh}/>
+                </div>}</div>)}</div>}
             </div>
+            <ProofCenter sceneId={selected} role={profile.role} actorId={me?.id||""} onNotify={notify} onChanged={refresh}/>
           </>}
         </>}
 
