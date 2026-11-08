@@ -11,9 +11,9 @@
 - Either party can pause or permanently end a scene at any time; only the sub may resume
 - Persistent audit trail, penalties → interest → principal payment allocation
 - Monthly compounded interest and weekly late fees are **manual** actions with cooldowns
-- Interactive Contract Workshop: create configurable debt contracts that combine Dice Duel, Fortune Wheel, Check-ins and verified Tasks, with editable game probabilities/outcomes, amounts and cooldowns
+- Interactive Contract Workshop: configure Dice Duel, Fortune Wheel, **weighted Random Events**, recurring Check-ins (with optional agreed late penalty), and verified Tasks. Customize probabilities, fictional credits/penalties, and cooldowns.
 - Publish or keep contract templates private; discover and customize community templates, then propose one to an accepted connection. The Sub must explicitly approve the terms before gameplay and may always pause/end the scene
-- Game effects are calculated and audited server-side (including limits), and every contract snapshots its terms and modules so template edits cannot retroactively alter agreements
+- Game effects are calculated and audited server-side (including limits), and every contract snapshots its terms and modules so template edits cannot retroactively alter agreements. Random events are **manually triggered** when available; this version does not execute unattended background events or charges.
 - Community Game Studio: write original rules and opening prompts, save drafts, publish to Discover, edit/unpublish your games, and play collaborative turn-based sessions inside approved scenes
 - Game sessions preserve the original rules, support both participants' free-form turns, and can be finished by either partner. Game moves never change the fictional ledger
 - Fixed-position action toasts show immediate progress, success and errors even when scrolled to the bottom of the dashboard
