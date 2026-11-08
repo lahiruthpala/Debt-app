@@ -535,3 +535,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
  .boundary-actions .btn{flex:1}.boundary-review{min-width:0}
 }
 @media(prefers-reduced-motion:reduce){.contract-pressure-track span,.contract-workshop .module-palette button{transition:none}}
+
+/* Keep the preview and the propose action in one non-overlapping sticky column.
+ * Always-visible notifications should never cover footer-form actions. */
+@media(min-width:951px){
+  .contract-workshop .contract-side{position:sticky;top:18px}
+}
+.contract-workshop .contract-preview{position:static;top:auto}
+.feedback-layer{top:max(16px,env(safe-area-inset-top));bottom:auto}
+@media(max-width:950px){.contract-workshop .contract-side{position:static}}
+@media(max-width:600px){.feedback-layer{top:max(12px,env(safe-area-inset-top));bottom:auto}}
