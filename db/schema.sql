@@ -269,3 +269,16 @@ CREATE TABLE IF NOT EXISTS contract_private_journal (
 );
 CREATE INDEX IF NOT EXISTS contract_private_journal_scene_idx
   ON contract_private_journal(scene_id,created_at DESC);
+
+-- Once-per-day, server-resolved, opt-in mini games in an active fictional scene.
+-- The full outcome history is also recorded in ledger_events.
+CREATE TABLE IF NOT EXISTS quick_game_plays (
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  game_key varchar(16) NOT NULL CHECK (game_key IN ('coin','highlow','cards','vault')),
+  actor_id text NOT NULL REFERENCES profiles(id),
+  played_at timestamptz NOT NULL DEFAULT now(),
+  outcome_label varchar(160) NOT NULL,
+  delta integer NOT NULL,
+  PRIMARY KEY (scene_id,game_key)
+);
+CREATE INDEX IF NOT EXISTS quick_game_plays_actor_idx ON quick_game_plays(actor_id,played_at DESC);
