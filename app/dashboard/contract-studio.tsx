@@ -391,7 +391,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
               <button className="btn btn-danger-soft" disabled={busy} onClick={()=>void decide("end")}>End contract</button></>}
             {current.status==="ended"&&<p>This contract has ended. Its audit history stays visible; no further actions are permitted.</p>}
           </div>
-          <BoundaryPlay sceneId={sceneId} modules={configured} role={role} onNotify={onNotify}
+          <BoundaryPlay sceneId={sceneId} sceneStatus={current.status} modules={configured} role={role} onNotify={onNotify}
             onChanged={async()=>{await Promise.all([loadScenes(),loadDetails(sceneId)])}}/>
           <div className="section-title"><h2>Interactive extensions</h2><span>{configured.length} MODULES</span></div>
           <div className="contract-game-grid">{configured.filter(isGameModule).map(module=>{

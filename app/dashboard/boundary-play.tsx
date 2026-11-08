@@ -21,8 +21,8 @@ const daysSince=(value:string|null):string=>value?
   String(Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/86400000))):"—"
 const dayNames=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
 
-export default function BoundaryPlay({sceneId,modules,role,onNotify,onChanged}:{
-  sceneId:string;modules:ContractModule[];role:"dom"|"sub";onNotify:Feedback;onChanged:()=>Promise<void>
+export default function BoundaryPlay({sceneId,sceneStatus,modules,role,onNotify,onChanged}:{
+  sceneId:string;sceneStatus:string;modules:ContractModule[];role:"dom"|"sub";onNotify:Feedback;onChanged:()=>Promise<void>
 }){
   const [data,setData]=useState<BoundaryData|null>(null)
   const [working,setWorking]=useState(false)
@@ -48,7 +48,7 @@ export default function BoundaryPlay({sceneId,modules,role,onNotify,onChanged}:{
       .then(body=>{if(live)setData(body)})
       .catch(error=>{if(live)onNotify("error",message(error))})
     return ()=>{live=false}
-  },[sceneId,available.length])
+  },[sceneId,sceneStatus,available.length])
   async function perform(payload:Record<string,unknown>){
     if(working)return
     setWorking(true);onNotify("pending","Updating private contract agreement…")
@@ -67,7 +67,7 @@ export default function BoundaryPlay({sceneId,modules,role,onNotify,onChanged}:{
     finally{setWorking(false)}
   }
   if(!available.length)return null
-  const active=data?.status==="active"
+  const active=sceneStatus==="active"
   const entryRows=data?.entries??[]
   const requestRows=data?.requests??[]
   return <section className="boundary-section" aria-label="Private contract controls">
@@ -95,7 +95,7 @@ export default function BoundaryPlay({sceneId,modules,role,onNotify,onChanged}:{
         <header className="boundary-card-title">
           <div className="boundary-emblem" aria-hidden="true">{isLock?"♢":isPermission?"◈":isJournal?"✒":"▦"}</div>
           <div><span className="eyebrow">{isLock?"01 · LOCK STATUS":isPermission?"02 · PERSONAL PERMISSION":isJournal?"03 · PRIVATE JOURNAL":"04 · RESTRICTION CALENDAR"}</span><h3>{module.name}</h3></div>
-          <span className={"boundary-state-pill "+(!active?"is-paused":"")}>{active?"ACTIVE":"PAUSED"}</span>
+          <span className={"boundary-state-pill "+(!active?"is-paused":"")}>{sceneStatus.toUpperCase()}</span>
         </header>
         {isLock&&<div className="boundary-content">
           <div className="boundary-metrics">

@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
+    actionTimeout: 15_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

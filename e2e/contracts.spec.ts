@@ -223,6 +223,7 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await expect(sub.page.locator(".boundary-permission")).toBeVisible()
     await expect(sub.page.locator(".boundary-journal")).toBeVisible()
     const beforeStatus=await json(sub.page,"/api/contracts?view=scene&id="+curatedScene.scene_id)
+    await expect(sub.page.getByRole("button",{name:"Mark locked"})).toBeEnabled()
     await sub.page.getByRole("button",{name:"Mark locked"}).click()
     await expect(sub.page.getByRole("status")).toContainText("Lock status recorded")
     await sub.page.getByRole("button",{name:"Request unlock review"}).click()
