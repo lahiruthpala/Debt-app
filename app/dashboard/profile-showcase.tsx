@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import {useEffect,useState,type FormEvent,type ReactNode} from "react"
-import type {ShowcaseSettings,ShowcaseStats,ShowcaseBadge} from "@/lib/showcase"
+import {interestGroups,normalizeInterests,MAX_PROFILE_LABELS,type ShowcaseSettings,type ShowcaseStats,type ShowcaseBadge} from "@/lib/showcase"
 
 type PublicProfile={
   handle:string;role:"dom"|"sub";bio:string;displayName:string;tagline:string;
@@ -212,14 +212,10 @@ export function ShowcasePreviewModal({handle,onClose,onInvite,busy}:{handle:stri
   </div>
 }
 
-function tags(input:string):string[]{
-  return input.split(",").map(s=>s.trim()).filter(Boolean)
-}
 export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:(type:"pending"|"success"|"error",message:string)=>void}){
   const [data,setData]=useState<ShowcaseResponse|null>(null)
   const [fields,setFields]=useState<ShowcaseSettings>(defaults)
-  const [likes,setLikes]=useState("")
-  const [dislikes,setDislikes]=useState("")
+  const [labelSearch,setLabelSearch]=useState("")
   const [busy,setBusy]=useState(false)
   const [ready,setReady]=useState(false)
   const [savedVisible,setSavedVisible]=useState(false)
@@ -230,12 +226,11 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
       setData(result)
       const p=result.profile
       setFields({
-        displayName:p.displayName||"",tagline:p.tagline||"",likes:p.likes||[],
-        dislikes:p.dislikes||[],dedication:p.dedication||"",boundaries:p.boundaries||"",
+        displayName:p.displayName||"",tagline:p.tagline||"",likes:normalizeInterests(p.likes),
+        dislikes:normalizeInterests(p.dislikes),dedication:p.dedication||"",boundaries:p.boundaries||"",
         showcaseEnabled:p.showcaseEnabled||false,showStats:p.showStats||false,
         showAchievements:p.showAchievements||false,showActivity:p.showActivity||false
       })
-      setLikes((p.likes||[]).join(", "));setDislikes((p.dislikes||[]).join(", "))
       setSavedVisible(Boolean(p.showcaseEnabled&&p.discoverable))
       setReady(true)
     }).catch(error=>{if(alive)onNotify("error",error instanceof Error?error.message:"Unable to load showcase")})
@@ -247,7 +242,7 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
     if(busy)return
     setBusy(true);onNotify("pending","Saving your showcase preferences…")
     try{
-      const body={...fields,likes:tags(likes),dislikes:tags(dislikes)}
+      const body={...fields}
       const response=await fetch("/api/showcase",{
         method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)
       })
@@ -262,10 +257,26 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
   function set<K extends keyof ShowcaseSettings>(name:K,value:ShowcaseSettings[K]){
     setFields(current=>({...current,[name]:value}))
   }
+  function toggleInterest(label:string,kind:"like"|"dislike"){
+    const key=kind==="like"?"likes":"dislikes"
+    const other=kind==="like"?"dislikes":"likes"
+    const present=fields[key].includes(label)
+    if(!present&&fields[key].length>=MAX_PROFILE_LABELS){
+      onNotify("error","You can select up to "+MAX_PROFILE_LABELS+" labels per preference.");return
+    }
+    setFields(current=>({
+      ...current,
+      [key]:present?current[key].filter(x=>x!==label):[...current[key],label],
+      [other]:current[other].filter(x=>x!==label)
+    }))
+  }
+  const filteredGroups=interestGroups.map(group=>({
+    ...group,labels:group.labels.filter(label=>label.toLowerCase().includes(labelSearch.trim().toLowerCase()))
+  })).filter(group=>group.labels.length>0)
   return <div className="showcase-editor">
     <div className="showcase-editor-title"><div><span className="eyebrow">02 / PERSONAL SHOWCASE</span>
       <h2>Show who you are before connecting.</h2>
-      <p className="muted">Share likes, dislikes, boundaries and your approach to collaboration. Verified badges come from app activity, not manually claimed rankings.</p></div>
+      <p className="muted">Choose from a fixed catalog of labels—no custom interests can be added. Your published choices help compatible members find you.</p></div>
       {savedVisible&&<Link className="btn btn-outline" href={"/u/"+encodeURIComponent(handle)}>View my member page ↗</Link>}
     </div>
     {!ready?<div className="dash-card">Loading your profile customization…</div>:
@@ -275,12 +286,44 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
           placeholder="How you'd like others to address you" onChange={e=>set("displayName",e.target.value)}/></label>
         <label>PROFILE HEADLINE<input maxLength={120} value={fields.tagline}
           placeholder="A short introduction to your interests and style" onChange={e=>set("tagline",e.target.value)}/></label>
-        <label>LIKES / INTERESTS (COMMA-SEPARATED)<textarea rows={2} maxLength={450} value={likes}
-          placeholder="Cooperative games, creative challenges, clear communication"
-          onChange={e=>setLikes(e.target.value)}/></label>
-        <label>DISLIKES (COMMA-SEPARATED)<textarea rows={2} maxLength={450} value={dislikes}
-          placeholder="Unclear expectations, disrespect, pressure"
-          onChange={e=>setDislikes(e.target.value)}/></label>
+        <section className="preset-interest-editor" aria-label="Choose preset likes and dislikes">
+          <div className="preset-interest-head">
+            <div><strong>LIKES & DISLIKES</strong><p>Select existing labels only. A label can be liked, disliked or left unselected.</p></div>
+            <span>{fields.likes.length} likes · {fields.dislikes.length} dislikes</span>
+          </div>
+          <label>FIND A LABEL<input type="search" value={labelSearch} placeholder="Search the preset catalog..."
+            onChange={event=>setLabelSearch(event.target.value)}/></label>
+          <div className="preset-interest-selected">
+            <div><small>YOUR LIKES</small>
+              <div className="preset-interest-chips">{fields.likes.length?fields.likes.map(label=>
+                <button key={label} className="preset-chip is-like" type="button"
+                  onClick={()=>toggleInterest(label,"like")} aria-label={"Remove liked label "+label}>{label} ×</button>):
+                <span className="muted">No likes selected</span>}</div></div>
+            <div><small>YOUR DISLIKES</small>
+              <div className="preset-interest-chips">{fields.dislikes.length?fields.dislikes.map(label=>
+                <button key={label} className="preset-chip is-dislike" type="button"
+                  onClick={()=>toggleInterest(label,"dislike")} aria-label={"Remove disliked label "+label}>{label} ×</button>):
+                <span className="muted">No dislikes selected</span>}</div></div>
+          </div>
+          <div className="preset-interest-groups">
+            {filteredGroups.length===0?<p className="muted">No matching labels. Try another search.</p>:
+              filteredGroups.map(group=><div className="preset-interest-group" key={group.name}>
+                <h4>{group.name}</h4>
+                {group.labels.map(label=><div className="preset-interest-row" key={label}>
+                  <span>{label}</span>
+                  <div className="preset-interest-options">
+                    <button type="button" className={fields.likes.includes(label)?"is-like":""}
+                      aria-label={"Like "+label} aria-pressed={fields.likes.includes(label)}
+                      onClick={()=>toggleInterest(label,"like")}>Like</button>
+                    <button type="button" className={fields.dislikes.includes(label)?"is-dislike":""}
+                      aria-label={"Dislike "+label} aria-pressed={fields.dislikes.includes(label)}
+                      onClick={()=>toggleInterest(label,"dislike")}>Dislike</button>
+                  </div>
+                </div>)}
+              </div>)}
+          </div>
+          <p className="showcase-footnote">Only selected likes from published, discoverable profiles are searchable in Discover. Up to {MAX_PROFILE_LABELS} labels per list.</p>
+        </section>
         <label>DEDICATION / APPROACH<textarea rows={3} maxLength={400} value={fields.dedication}
           placeholder="What you value in a consensual partnership…"
           onChange={e=>set("dedication",e.target.value)}/></label>
@@ -309,7 +352,7 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
       <div><div className="eyebrow showcase-preview-label">YOUR PRIVATE PREVIEW</div>
         {data&&<MemberCard preview data={{...data,profile:{
           ...data.profile,displayName:fields.displayName,tagline:fields.tagline,
-          likes:tags(likes),dislikes:tags(dislikes),
+          likes:fields.likes,dislikes:fields.dislikes,
           dedication:fields.dedication,boundaries:fields.boundaries
         }}}/>}
       </div>

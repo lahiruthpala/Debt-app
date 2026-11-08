@@ -867,3 +867,52 @@ button:disabled{opacity:.45;cursor:not-allowed}
   .discover-profile-card{flex-wrap:wrap}.discover-profile-card .person-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
   .discover-profile-card .person-actions .btn{flex:1;text-align:center}
   .showcase-editor-grid{grid-template-columns:1fr}}
+
+/* Preset interest catalog - no arbitrary labels */
+.preset-interest-editor{display:flex;flex-direction:column;gap:14px;padding:16px;border:1px solid #74516b;
+  border-radius:13px;background:#241c29;min-width:0}
+.preset-interest-head,.discover-like-filter-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.preset-interest-head strong,.discover-like-filter-head strong{display:block;color:#f3d6e5;font-size:.82rem}
+.preset-interest-head p,.discover-like-filter-head p{font-size:.72rem;color:#c6aabd;line-height:1.55;margin-top:5px}
+.preset-interest-head>span{flex-shrink:0;font-size:.69rem;color:#eabacf;padding:6px 9px;border:1px solid #684659;
+  border-radius:40px;background:#3e2b3b}
+.preset-interest-editor input,.discover-filter-search input{width:100%;background:#17131c}
+.preset-interest-selected{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+.preset-interest-selected small{display:block;font-size:.62rem;letter-spacing:.11em;color:#dcb2c8;font-weight:750;margin-bottom:8px}
+.preset-interest-chips{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;min-height:35px}
+.preset-interest-chips .muted{font-size:.71rem}
+.preset-chip{border-radius:30px;border:1px solid #88627e;padding:7px 10px;color:#eed3df;background:#433043;
+  cursor:pointer;font-size:.68rem;max-width:100%;overflow-wrap:anywhere;line-height:1.4}
+.preset-chip.is-like{background:#304a42;border-color:#699c83;color:#c4f2d7}
+.preset-chip.is-dislike{background:#4d3038;border-color:#ad7186;color:#ffd9df}
+.preset-interest-groups{display:flex;flex-direction:column;gap:13px;max-height:425px;overflow:auto;padding-right:4px}
+.preset-interest-group{border:1px solid #554054;border-radius:10px;background:#2e2431;padding:11px}
+.preset-interest-group h4,.discover-likes-category h4{font-size:.7rem;color:#edc2d9;letter-spacing:.03em;margin:2px 0 9px}
+.preset-interest-row{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:7px 3px;border-top:1px solid #ffffff0f;font-size:.76rem;color:#e8d4e1}
+.preset-interest-row>span{overflow-wrap:anywhere}
+.preset-interest-options{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.preset-interest-options button{cursor:pointer;font-size:.68rem;border:1px solid #6a5269;
+  border-radius:7px;background:#332738;color:#bca7b6;padding:6px 9px}
+.preset-interest-options button:hover,.discover-likes-options button:hover{border-color:#c393ac;color:#fff0f8}
+.preset-interest-options button.is-like{color:#bcf1d0;background:#315342;border-color:#7cae92}
+.preset-interest-options button.is-dislike{color:#ffe0e2;background:#633743;border-color:#c98a99}
+.preset-interest-options button:focus-visible,.preset-chip:focus-visible,
+.discover-likes-options button:focus-visible{outline:2px solid #eeafcb;outline-offset:2px}
+.discover-like-filter{display:flex;flex-direction:column;gap:12px;margin:17px 0 21px;padding:16px;border:1px solid #644658;
+  background:#251d28;border-radius:13px}
+.discover-filter-search{display:block;font-size:.7rem;letter-spacing:.02em;color:#d1b0c2}
+.discover-filter-search input{display:block;margin-top:7px;width:100%}
+.discover-selected-likes{display:flex;flex-wrap:wrap;gap:7px}
+.discover-selected-likes button{font-size:.69rem;border:1px solid #7cb392;border-radius:40px;
+  padding:7px 11px;cursor:pointer;background:#315041;color:#d9ffe6}
+.discover-likes-catalog{max-height:240px;overflow:auto;padding-right:4px;display:flex;flex-direction:column;gap:13px}
+.discover-likes-category{border-top:1px solid #594050;padding-top:11px}
+.discover-likes-category h4{margin:0 0 9px}
+.discover-likes-options{display:flex;flex-wrap:wrap;gap:7px}
+.discover-likes-options button{font-size:.68rem;padding:7px 10px;border:1px solid #654b61;border-radius:30px;
+  background:#34283a;color:#d4bfce;cursor:pointer;max-width:100%;overflow-wrap:anywhere}
+.discover-likes-options button.is-selected{background:#315241;border-color:#8bc09b;color:#d3fae0}
+@media(max-width:650px){.preset-interest-selected{grid-template-columns:1fr}
+  .preset-interest-head,.discover-like-filter-head{flex-direction:column}
+  .preset-interest-options button{padding:6px 8px}}

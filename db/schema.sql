@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS profile_showcases (
   CONSTRAINT showcase_likes_array CHECK(jsonb_typeof(likes)='array'),
   CONSTRAINT showcase_dislikes_array CHECK(jsonb_typeof(dislikes)='array')
 );
+-- Index preselected likes without ever exposing an unpublished showcase.
+CREATE INDEX IF NOT EXISTS profile_showcases_likes_gin ON profile_showcases USING gin(likes);
 
 
 CREATE TABLE IF NOT EXISTS connections (
