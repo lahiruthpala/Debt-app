@@ -12,7 +12,7 @@
 - Persistent audit trail, penalties → interest → principal payment allocation
 - Monthly compounded interest and weekly late fees are **manual** actions with cooldowns
 - Interactive Contract Workshop: configure Dice Duel, Fortune Wheel, **weighted Random Events**, recurring Check-ins (with optional agreed late penalty), and verified Tasks. Customize probabilities, fictional credits/penalties, and cooldowns.
-- **Private Contract Atelier** adds opt-in lock-status tracking, optional permission-status counters, requests for review, text-only partner check-ins, private journals and agreed calendar windows. Nothing controls physical devices, requires intimate photos, or collects real payments.
+- **Private Contract Atelier** adds proof-backed, Dom-reviewed lock status, unlock requests, optional permission-status counters, text-only partner check-ins, private journals and agreed calendar windows. Nothing controls physical devices, requires intimate photos, or collects real payments.
 - New modules are included across all 20 first-party published templates, which retain server validation and mutually accepted snapshots. Live preview includes a visual intensity meter and explicit consent preview.
 - Self-reported personal data and journal entries can be erased by their author even after a contract ends. Audit metadata (without journal content) remains. No penalties apply for unlocking, declining an inspection, or withdrawing consent.
 - Publish or keep contract templates private; discover and customize community templates, then propose one to an accepted connection. The Sub must explicitly approve the terms before gameplay and may always pause/end the scene
@@ -108,8 +108,12 @@ Connect a **Private** Vercel Blob store to this project. The store must provide
 **A public Blob store is intentionally unsupported** because proof images may
 contain sensitive personal information. Do not place Blob credentials in client code.
 
-From **Contracts → My contracts**, a Sub may optionally upload non-explicit JPEG,
-PNG or WebP evidence for a self-reported lock status or a pending verified task.
+From **Contracts → My contracts**, a Sub uploads a non-explicit JPEG, PNG or
+WebP photo before Request lock becomes enabled. Upload alone does not mark
+anything locked: pressing Request lock links the photo to a pending request.
+The Dom approves or declines it in Proof Center; only approval sets the
+self-reported status to locked. Subs can request unlock review, and Dom
+approval clears the reported status. Task images remain optional.
 From **Overview**, a Sub enters the simulated credit amount and attaches a
 non-explicit payment proof image. The Dom must approve the submission before
 the fictional balance changes; there is no direct Apply credit button. From **Game room**, a Sub may attach evidence for
@@ -124,8 +128,9 @@ an open challenge. The connected Dom reviews photos in **Proof Center**.
   intimate images, IDs, address details, or images of anyone without permission.
 - Approval of a photo-backed task, challenge, or simulated payment applies the
   corresponding fictional credit **once**; rejecting an upload applies nothing.
-  Lock evidence verifies self-reported status only, never imposes penalties or
-  removes any user's right to unlock, pause, or end a scene.
+  Lock evidence updates self-reported status only after Dom approval; it never
+  imposes penalties or restricts someone's ability to physically unlock, pause,
+  end the scene, or erase their private status data.
 - Direct no-photo payments are rejected by the API. Task completions retain
   their existing behavior.
   If a photo has been attached to a task or challenge, review must happen through

@@ -5,7 +5,7 @@ import {maxProofBytes,type ProofKind,type ProofStatus} from "@/lib/proof-rules"
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Proof={
  id:string;scene_id:string;kind:ProofKind;module_id:string|null;claim_id:string|null;
- challenge_id:string|null;amount:number|null;note:string;status:ProofStatus;created_at:string;
+ challenge_id:string|null;amount:number|null;lock_request_id:string|null;note:string;status:ProofStatus;created_at:string;
  reviewed_at:string|null;review_note:string|null;deleted_at:string|null;submitter_handle:string;
  reviewer_handle:string|null;submitter_id:string
 }
@@ -68,7 +68,7 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
      <input aria-label="Simulated credit amount" type="number" min={1} max={100000} step={1} required
        value={amount??""} onChange={e=>onAmountChange?.(Number(e.target.value))}/>
    </label>}
-   <label className="proof-input-label">{kind==="payment"?"Attach payment proof image":"Attach optional private photo"}
+   <label className="proof-input-label">{kind==="payment"?"Attach payment proof image":kind==="lock"?"Upload non-explicit lock photo":"Attach optional private photo"}
      <input ref={inputRef} aria-label={"Proof image for "+titles[kind]} type="file" required={kind==="payment"}
        accept="image/jpeg,image/png,image/webp"
        onChange={e=>setFile(e.target.files?.[0]||null)}/>
@@ -84,7 +84,7 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
    <div className="proof-uploader-footer">
      <span>JPEG / PNG / WebP · maximum 3 MB · stored privately, metadata removed</span>
      <button type="submit" className="btn btn-outline" disabled={!file||!confirmed||working||!sceneId||invalidPayment}>
-       {working?"Uploading…":"Submit for review ↗"}
+       {working?"Uploading…":kind==="lock"?"Upload lock photo ↗":"Submit for review ↗"}
      </button>
    </div>
  </form>
@@ -155,7 +155,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
    }catch(error){onNotify("error",message(error))}
    finally{setWorking(null)}
  }
- const pending=proofs.filter(p=>p.status==="pending"&&!p.deleted_at).length
+ const pending=proofs.filter(p=>p.status==="pending"&&!p.deleted_at&&(p.kind!=="lock"||Boolean(p.lock_request_id))).length
  return <section className="dash-card proof-center" aria-label="Private proof review">
    <div className="proof-center-heading">
      <div><span className="eyebrow">PRIVATE · MUTUAL REVIEW</span><h3>Proof Center <span className="mini-label">{pending} PENDING</span></h3>
@@ -169,7 +169,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
          <div><strong>{titles[proof.kind]}</strong>
            <small>Submitted by @{proof.submitter_handle} · {new Date(proof.created_at).toLocaleString("en-GB")}
              {proof.amount!==null?" · "+proof.amount.toLocaleString()+" simulated credits":""}</small></div>
-         <span className={"proof-status status-"+proof.status}>{proof.deleted_at?"Erased":proof.status}</span>
+         <span className={"proof-status status-"+proof.status}>{proof.deleted_at?"Erased":proof.kind==="lock"&&proof.status==="pending"&&!proof.lock_request_id?"Ready for lock request":proof.status}</span>
        </div>
        {proof.note&&<p className="proof-note">{proof.note}</p>}
        {!proof.deleted_at && <div className="proof-media">
@@ -184,7 +184,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
        {proof.review_note&&<p className="proof-note"><b>Review:</b> {proof.review_note}</p>}
        {proof.status!=="pending"&&<small className="proof-history">Reviewed by @{proof.reviewer_handle||"partner"}
          {proof.reviewed_at?" · "+new Date(proof.reviewed_at).toLocaleString("en-GB"):""}</small>}
-       {role==="dom"&&proof.status==="pending"&&!proof.deleted_at&&<div className="proof-review">
+       {role==="dom"&&proof.status==="pending"&&!proof.deleted_at&&(proof.kind!=="lock"||Boolean(proof.lock_request_id))&&<div className="proof-review">
          <label>Review note / rejection reason
            <input aria-label={"Review note for "+proof.id} maxLength={500} value={notes[proof.id]||""}
              placeholder="Optional for approval; required when rejecting"
