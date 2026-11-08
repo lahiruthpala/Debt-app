@@ -238,7 +238,6 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     expect(afterApproval.state.find((x:{module_id:string;locked_since:string|null})=>x.module_id===curatedScene.modules_snapshot.find((m:{type:string})=>m.type==="lock").id)?.locked_since).toBeNull()
     await sub.page.getByRole("button",{name:"Request permission review"}).click()
     await expect(sub.page.getByRole("status")).toContainText("Request sent")
-    await dom.page.getByRole("button",{name:/Refresh/}).first().click().catch(()=>{})
     await dom.page.reload()
     await tab(dom.page,"Game room")
     await dom.page.getByRole("button",{name:/My contracts/}).click()
