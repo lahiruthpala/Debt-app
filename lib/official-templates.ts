@@ -133,8 +133,66 @@ const recipes:Recipe[]=[
   ]),
 ]
 
+
+// Additional first-party modules make every recipe more varied while preserving
+// private consent, voluntary self-reporting, and partner review.
+const lock=(name:string,suggestedDays:number,checkinHours=24):ModuleRecipe=>({
+  type:"lock",name,suggestedDays,checkinHours,keyholderLabel:"Trusted partner"
+})
+const permission=(name:string,initialStatus:"restricted"|"limited"|"allowed"="restricted"):ModuleRecipe=>({
+  type:"permission",name,initialStatus,reminderHours:24
+})
+const journal=(name:string,prompt:string):ModuleRecipe=>({type:"journal",name,prompt})
+const calendar=(name:string,days:number[],startHour:number,endHour:number):ModuleRecipe=>({
+  type:"calendar",name,days,startHour,endHour
+})
+const additions:ModuleRecipe[][]=[
+  [lock("Velvet Key Agreement",7),permission("The Sealed Permission", "limited"),journal("Whispered Notes","Record an optional private reflection after your next spin.")],
+  [lock("Royal Keeper",14),journal("Court Confessions","Record a fictional oath and your progress through the royal challenges.")],
+  [journal("Clue Diary","Describe the next clue, secret or surprise for your partner."),calendar("The Midnight Window",[1,3,5],18,22)],
+  [lock("Vault Keeper",10),calendar("Heist Hours",[2,4,6],19,23)],
+  [permission("Arcade Permission", "allowed"),calendar("Neon Night Sessions",[5,6],18,24)],
+  [lock("Dragon's Key",21),permission("Treasury Protocol"),journal("Dragon Journal","Document a fictional discovery from the treasury.")],
+  [journal("Moonlit Reflections","Share a supportive private milestone or imaginative promise."),calendar("Moonrise Hours",[1,3,5],18,22)],
+  [lock("Shadow Key",30),permission("Shadow Agreement"),calendar("High Stakes Night",[5,6],20,24)],
+  [lock("Crown Ceremony",14),permission("The Royal Protocol")],
+  [journal("Maze Journal","Write the latest clue and your next harmless creative step."),permission("Passage Protocol", "limited")],
+  [lock("Lucky Key",7),journal("Lucky Journal","Record an unexpected turn of events and a favorite moment.")],
+  [journal("Sunset Journal","Share a private reflection on your goals and collaboration."),calendar("Golden Hour",[1,2,3,4,5],17,21)],
+  [lock("Star Keeper",14),journal("Star Log","Write a short message from your fictional space mission.")],
+  [permission("The Auction's Rules", "limited"),journal("Bidder Notes","Describe a playful auction item and your imagined bid.")],
+  [permission("Wonderland Permission"),calendar("Wonderland Sessions",[3,5,6],18,23)],
+  [lock("Shelter Keeper",10),journal("Storm Log","Share an imaginary forecast and a plan for calmer skies.")],
+  [lock("Vault Keyholder",14),permission("Cipher Access"),journal("Codebreaker Journal","Record the next harmless clue to your mystery.")],
+  [lock("Crown Keeper",7),calendar("Coin Toss Window",[1,3,5,6],18,22)],
+  [journal("Lantern Wishes","Write a private creative wish or lantern story."),calendar("Festival Evenings",[5,6],18,23)],
+  [lock("Carnival Keeper",30),permission("The Velvet Protocol"),journal("The After-Show Journal","Write a private, fictional account of the night's challenges.")]
+]
+const hooks=[
+  "A chance-filled private contest: every wheel turn reveals a new imagined consequence and another chance to rewrite the ledger.",
+  "A royal pact of dice and secrecy, with creative decrees and a keyholding status that only the participant can self-report.",
+  "A locked-room mystery of cryptic events, whispered clue entries and scheduled story hours.",
+  "A cinematic vault challenge where every choice matters to the fictional balance and the team plans its next move.",
+  "Electric arcade tension: short cooldowns, bright random turns and a timeboxed shared challenge window.",
+  "Guard a legendary treasure with dramatic dice battles, keyholding status and a private treasure log.",
+  "A gentle but absorbing series of moonlit rituals, journal prompts and rewarding progress milestones.",
+  "The casino waits: risky fictional stakes, unpredictable house events and a tightly framed private agreement.",
+  "Earn a crown through discipline, optional check-ins and creatively written royal challenges.",
+  "A maze of decisions, suspenseful random doors, private puzzle entries and partner-reviewed progress.",
+  "Seven-sided luck meets a signature wheel and a private agreement to track the unfolding streak.",
+  "Slow-building anticipation and creative daily rituals framed by a golden-hour calendar.",
+  "A cosmic gamble where dice, chance and personal mission notes shape the next imaginary voyage.",
+  "A secret auction hall where imaginative bids and prize wheels reveal the next harmless twist.",
+  "Unexpected cards, colorful wheels, and a storybook schedule make each session a new game.",
+  "The storm gathers and clears through weighted forecasts, check-ins, and private creative updates.",
+  "The vault hides a second code: earn credits with riddles and keep a private record of the hunt.",
+  "A regal contest with coin tosses, creative tasks and an optional keyholding status.",
+  "A glowing festival of colorful outcomes, ritual windows and private lantern wishes.",
+  "The grand finale combines five playable game types with status tracking, private permission requests and reflective journaling."
+]
+
 export const officialTemplates:OfficialTemplate[]=recipes.map((item,index)=>{
-  const modules=item.modules.map((module,position)=>({
+  const modules=[...item.modules,...additions[index]].map((module,position)=>({
     ...module,
     id:uid(100+index*10+position),
     ...(module.type==="tasks"?{
@@ -143,7 +201,7 @@ export const officialTemplates:OfficialTemplate[]=recipes.map((item,index)=>{
       }))
     }:{})
   }))
-  const definition=contractDefinitionSchema.parse({...item,modules})
+  const definition=contractDefinitionSchema.parse({...item,description:hooks[index],modules})
   return {
     ...definition,
     id:uid(index+1),
