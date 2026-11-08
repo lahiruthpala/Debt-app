@@ -218,7 +218,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
               <input aria-label={"Wheel segment "+index+" amount "+j} type="number" min={-10000} max={10000}
                 value={outcome.delta} onChange={e=>updateModule(module.id,{outcomes:module.outcomes.map((x,k)=>k===j?{...x,delta:Number(e.target.value)}:x)})}/>
               {module.type==="random"&&<input aria-label={"Event weight "+index+" option "+j} type="number" min={1} max={20}
-                value={outcome.weight} onChange={e=>updateModule(module.id,{outcomes:module.outcomes.map((x,k)=>k===j?{...x,weight:Number(e.target.value)}:x)})}/>}
+                value={"weight" in outcome?outcome.weight:1} onChange={e=>updateModule(module.id,{outcomes:module.outcomes.map((x,k)=>k===j?{...x,weight:Number(e.target.value)}:x)})}/>}
               <button type="button" aria-label={"Delete wheel segment "+j} disabled={module.outcomes.length<=2}
                 onClick={()=>updateModule(module.id,{outcomes:module.outcomes.filter((_,k)=>k!==j)})}>×</button>
             </div>)}
@@ -342,7 +342,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
                   const colors=["#b84e69","#e0a970","#7b729d","#6d9a8b"]
                   return colors[i%colors.length]+" "+(i*100/module.outcomes.length)+"% "+((i+1)*100/module.outcomes.length)+"%"
                 }).join(",")+")"}}><span>✦</span></div>
-                <div className="wheel-summary">{module.outcomes.map((o,i)=><span key={i}>{o.label}: {o.delta>0?"+":""}{money(o.delta)}{module.type==="random"?" · weight "+o.weight:""}</span>)}</div></>}
+                <div className="wheel-summary">{module.outcomes.map((o,i)=><span key={i}>{o.label}: {o.delta>0?"+":""}{money(o.delta)}{module.type==="random"?" · weight "+("weight" in o?o.weight:1):""}</span>)}</div></>}
               {module.type==="checkin"&&<><p>Complete a check-in to earn {money(module.reward)} in fictional debt credits. Repeat after the agreed cooldown.{module.latePenalty?" A late check-in can add "+money(module.latePenalty)+" in agreed fictional penalties.":""}</p>
                 <div className="contract-checkin-glyph">◷ <span>{module.cooldownHours}h interval</span></div></>}
               {module.type!=="tasks" && <><button className="btn btn-red full" disabled={!isPlayable||busy||cooling||(module.type==="checkin"&&role!=="sub")}
