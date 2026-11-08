@@ -4,6 +4,7 @@ import { z } from "zod"
 import { getPool } from "@/lib/db"
 import { getAuth } from "@/lib/auth"
 import { applyCredit, QUESTS } from "@/lib/ledger"
+import { parseEngine, EMPTY_ENGINE } from "@/lib/contract-modules"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -72,7 +73,8 @@ const proposalSchema = z.object({
   connectionId: uuid, principal: z.number().int().min(0).max(1000000),
   monthlyRate: z.number().int().min(0).max(30),
   weeklyTarget: z.number().int().min(0).max(100000),
-  lateFee: z.number().int().min(0).max(10000)
+  lateFee: z.number().int().min(0).max(10000),
+  gameId: uuid.optional().nullable(),
 })
 function parse<T>(schema: z.ZodType<T>, payload: unknown): T {
   const result = schema.safeParse(payload)
@@ -242,15 +244,21 @@ export async function POST(req: Request) {
       if (profile.role !== "dom") throw new ApiError(403, "Only Dom accounts can propose scene terms")
       const input = parse(proposalSchema, body)
       const id = randomUUID()
+      let engineSnapshot=EMPTY_ENGINE
+      if(input.gameId){
+        const game=await getPool().query("SELECT engine_config FROM community_games WHERE id=$1 AND published=true",[input.gameId])
+        if(!game.rows.length)throw new ApiError(404,"Published game template not found")
+        engineSnapshot=parseEngine(game.rows[0].engine_config)
+      }
       const { rows } = await getPool().query(
-        `INSERT INTO scenes (id,connection_id,status,start_principal,principal,monthly_rate,weekly_target,late_fee)
-          SELECT $1,c.id,'proposed',$3,$3,$4,$5,$6 FROM connections c
+        `INSERT INTO scenes (id,connection_id,status,start_principal,principal,monthly_rate,weekly_target,late_fee,contract_game_id,engine_snapshot)
+          SELECT $1,c.id,'proposed',$3,$3,$4,$5,$6,$8,$9::jsonb FROM connections c
           JOIN profiles other ON other.id=CASE WHEN c.sender_id=$2 THEN c.recipient_id ELSE c.sender_id END
           WHERE c.id=$7 AND c.state='active' AND (c.sender_id=$2 OR c.recipient_id=$2)
             AND other.role='sub'
             AND NOT EXISTS (SELECT 1 FROM scenes s WHERE s.connection_id=c.id AND s.status<>'ended')
           RETURNING id`,
-        [id, actor.id, input.principal, input.monthlyRate, input.weeklyTarget, input.lateFee, input.connectionId]
+        [id, actor.id, input.principal, input.monthlyRate, input.weeklyTarget, input.lateFee, input.connectionId,input.gameId??null,JSON.stringify(engineSnapshot)]
       )
       if (!rows.length) throw new ApiError(409, "Active connection required; finish any existing scene first")
       return respond({ id, message: "Terms proposed. The sub must approve." }, 201)

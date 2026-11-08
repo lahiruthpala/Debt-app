@@ -3,6 +3,7 @@ import type { PoolClient } from "pg"
 import { z } from "zod"
 import { getAuth } from "@/lib/auth"
 import { getPool } from "@/lib/db"
+import { engineSchema, EMPTY_ENGINE } from "@/lib/contract-modules"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -21,6 +22,7 @@ const gameInput = z.object({
   rules: text(20,4000),
   openingPrompt: z.string().trim().max(1000),
   publish: z.boolean(),
+  engineConfig: engineSchema.default(EMPTY_ENGINE),
 })
 function parse<T>(schema: z.ZodType<T>, data: unknown): T {
   const parsed = schema.safeParse(data)
@@ -89,7 +91,7 @@ export async function GET(req:Request) {
     if (view==="library") {
       const q=(url.searchParams.get("q") || "").trim().slice(0,80)
       const games=await getPool().query(
-        "SELECT g.id,g.author_id,g.title,g.summary,g.category,g.rules,g.opening_prompt,g.published,g.created_at,"+
+        "SELECT g.id,g.author_id,g.title,g.summary,g.category,g.rules,g.opening_prompt,g.engine_config,g.published,g.created_at,"+
         "p.handle AS author_handle,(SELECT count(*)::int FROM community_game_sessions gs WHERE gs.game_id=g.id) AS play_count "+
         "FROM community_games g JOIN profiles p ON p.id=g.author_id "+
         "WHERE g.published=true AND (g.title ILIKE $1 OR g.summary ILIKE $1 OR g.category ILIKE $1) "+
@@ -97,7 +99,7 @@ export async function GET(req:Request) {
         ["%"+q+"%"]
       )
       const mine=await getPool().query(
-        "SELECT g.id,g.author_id,g.title,g.summary,g.category,g.rules,g.opening_prompt,g.published,g.created_at,"+
+        "SELECT g.id,g.author_id,g.title,g.summary,g.category,g.rules,g.opening_prompt,g.engine_config,g.published,g.created_at,"+
         "p.handle AS author_handle,(SELECT count(*)::int FROM community_game_sessions gs WHERE gs.game_id=g.id) AS play_count "+
         "FROM community_games g JOIN profiles p ON p.id=g.author_id "+
         "WHERE g.author_id=$1 ORDER BY g.updated_at DESC LIMIT 50", [actorId]
@@ -154,18 +156,18 @@ export async function POST(req:Request) {
         if (countRows[0].total>=50) throw new GameError(429,"You may create up to 50 games")
         const id=randomUUID()
         await getPool().query(
-          "INSERT INTO community_games(id,author_id,title,summary,category,rules,opening_prompt,published,published_at) "+
-          "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CASE WHEN $8 THEN now() ELSE NULL END)",
-          [id,actorId,game.title,game.summary,game.category,game.rules,game.openingPrompt,game.publish]
+          "INSERT INTO community_games(id,author_id,title,summary,category,rules,opening_prompt,engine_config,published,published_at) "+
+          "VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,CASE WHEN $9 THEN now() ELSE NULL END)",
+          [id,actorId,game.title,game.summary,game.category,game.rules,game.openingPrompt,JSON.stringify(game.engineConfig),game.publish]
         )
         return respond({id,message:game.publish?"Your game is published in Discover!":"Draft saved. Publish it when ready."},201)
       }
       const id=parse(uuid,body.gameId)
       const {rowCount}=await getPool().query(
-        "UPDATE community_games SET title=$1,summary=$2,category=$3,rules=$4,opening_prompt=$5,"+
-        "published=$6,published_at=CASE WHEN $6 AND published=false THEN now() WHEN $6 THEN published_at ELSE NULL END,"+
-        "updated_at=now() WHERE id=$7 AND author_id=$8",
-        [game.title,game.summary,game.category,game.rules,game.openingPrompt,game.publish,id,actorId]
+        "UPDATE community_games SET title=$1,summary=$2,category=$3,rules=$4,opening_prompt=$5,engine_config=$6::jsonb,"+
+        "published=$7,published_at=CASE WHEN $7 AND published=false THEN now() WHEN $7 THEN published_at ELSE NULL END,"+
+        "updated_at=now() WHERE id=$8 AND author_id=$9",
+        [game.title,game.summary,game.category,game.rules,game.openingPrompt,JSON.stringify(game.engineConfig),game.publish,id,actorId]
       )
       if (!rowCount) throw new GameError(404,"Only the creator can edit this game")
       return respond({message:"Game changes saved."})
