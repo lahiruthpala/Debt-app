@@ -1,6 +1,6 @@
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {contractDefinitionSchema,duelDelta,availableAfterCooldown} from "../lib/contract-rules.ts"
+import {contractDefinitionSchema,duelDelta,availableAfterCooldown,weightedOutcome,checkinDelta} from "../lib/contract-rules.ts"
 
 test("server accepts configurable dice, wheel, check-ins and tasks",()=>{
   const modules=[
@@ -25,4 +25,31 @@ test("cooldowns are computed from the server clock",()=>{
   assert.equal(availableAfterCooldown(then,24,Date.parse(then)+3600000).ready,false)
   assert.equal(availableAfterCooldown(then,24,Date.parse(then)+86400000).ready,true)
   assert.equal(availableAfterCooldown(then,0,Date.parse(then)+1000).ready,true)
+})
+
+test("weighted events honor odds and reject invalid tickets",()=>{
+  const choices=[{weight:3,label:"credit"},{weight:2,label:"penalty"},{weight:5,label:"quiet"}]
+  for(let value=0;value<10;value++){
+    const expected=value<3?"credit":value<5?"penalty":"quiet"
+    assert.equal(weightedOutcome(choices,value).label,expected)
+  }
+  assert.throws(()=>weightedOutcome(choices,10))
+})
+test("check-ins apply no late penalty before the grace interval",()=>{
+  const now=Date.parse("2026-11-08T12:00:00Z")
+  const start=new Date(now-36*3600000)
+  assert.deepEqual(checkinDelta({previous:null,started:start,intervalHours:24,reward:500,latePenalty:1200},now),
+    {overdue:false,latePenalty:0,delta:-500})
+  assert.deepEqual(checkinDelta({previous:null,started:start,intervalHours:12,reward:500,latePenalty:1200},now),
+    {overdue:true,latePenalty:1200,delta:700})
+  assert.deepEqual(checkinDelta({previous:null,started:start,intervalHours:12,reward:500},now),
+    {overdue:true,latePenalty:0,delta:-500})
+})
+test("user-defined weighted events obey server caps",()=>{
+  const base={title:"Weighted contract",description:"Flexible, agreed fantasy mechanics.",category:"Chance",
+    terms:{principal:10000,monthlyRate:0,weeklyTarget:1000,lateFee:0},
+    modules:[{id:"77777777-7777-4777-8777-777777777777",name:"Random Surprise",type:"random",
+      cooldownHours:1,outcomes:[{label:"Credit",delta:-500,weight:7},{label:"Penalty",delta:1000,weight:1}]}]}
+  assert.equal(contractDefinitionSchema.safeParse(base).success,true)
+  assert.equal(contractDefinitionSchema.safeParse({...base,modules:[{...base.modules[0],outcomes:[{label:"Test",delta:0,weight:0},{label:"Other",delta:0,weight:1}]}]}).success,false)
 })

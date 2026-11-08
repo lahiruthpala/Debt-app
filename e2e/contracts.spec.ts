@@ -67,6 +67,9 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await dom.page.getByLabel("Contract name").fill("Dice and Wheel "+stamp)
     await dom.page.locator(".module-palette button").filter({hasText:"Check-ins"}).click()
     await dom.page.locator(".module-palette button").filter({hasText:"Verified tasks"}).click()
+    await dom.page.locator(".module-palette button").filter({hasText:"Random events"}).click()
+    await dom.page.getByLabel("Event weight 4 option 0").fill("7")
+    await dom.page.getByLabel("Checkin late penalty 2").fill("1200")
     await dom.page.getByLabel("Checkin reward 2").fill("700")
     await dom.page.getByLabel("Task 3 name 0").fill("Complete an imaginary balance review together")
     await dom.page.getByRole("button",{name:/Publish template/}).click()
@@ -75,7 +78,7 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     const created=list.mine.find((x:{title:string})=>x.title==="Dice and Wheel "+stamp)
     expect(created).toBeTruthy()
     templateId=created.id
-    expect(created.modules).toHaveLength(4)
+    expect(created.modules).toHaveLength(5)
 
     // Another account can discover the public template but cannot change it.
     const discovered=await json(sub.page,"/api/contracts?view=templates&q="+stamp)
@@ -99,7 +102,8 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     const wheel=scene.modules_snapshot.find((m:{type:string})=>m.type==="wheel")
     const checkin=scene.modules_snapshot.find((m:{type:string})=>m.type==="checkin")
     const tasks=scene.modules_snapshot.find((m:{type:string})=>m.type==="tasks")
-    expect(dice&&wheel&&checkin&&tasks).toBeTruthy()
+    const random=scene.modules_snapshot.find((m:{type:string})=>m.type==="random")
+    expect(dice&&wheel&&checkin&&tasks&&random).toBeTruthy()
     const beforeConsent=await dom.page.request.post("/api/contracts",{
       headers:{origin},data:{action:"play",sceneId:scene.scene_id,moduleId:dice.id}
     })
@@ -132,6 +136,15 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await expect(sub.page.getByRole("status")).toContainText("Fortune Wheel")
     const afterWheel=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
     expect(afterWheel.actions.some((a:{module_id:string})=>a.module_id===wheel.id)).toBe(true)
+    await sub.page.locator(".contract-game-card.kind-random").getByRole("button",{name:/Reveal event/}).click()
+    await expect(sub.page.getByRole("status")).toContainText("random event")
+    const afterRandom=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
+    const selected=afterRandom.actions.find((a:{module_id:string})=>a.module_id===random.id)
+    expect(random.outcomes.some((o:{label:string})=>o.label===selected.details.label)).toBe(true)
+    const repeatedRandom=await sub.page.request.post("/api/contracts",{
+      headers:{origin},data:{action:"play",sceneId:scene.scene_id,moduleId:random.id}
+    })
+    expect(repeatedRandom.status()).toBe(429)
     await sub.page.locator(".contract-game-card.kind-checkin").getByRole("button",{name:/Check in/}).click()
     await expect(sub.page.getByRole("status")).toContainText("check-in completed")
 
