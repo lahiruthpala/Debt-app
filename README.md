@@ -194,3 +194,21 @@ must also be enabled for other members to see the showcase.
   another's showcases. No public anonymous directory is created.
 - Profile likes, dislikes, dedication and boundaries are **self-reported**;
   earned badges reflect only recorded application actions, not personal identity.
+
+## Redesigned member profiles and Discover preview
+
+The profile view uses a cover header, large member identity, overview/statistics,
+activity timeline, and earned-achievement tabs. It shows optional interests,
+dislikes, dedication and boundaries in visually distinct cards. The same layout
+appears as the owner's live preview in **My profile**.
+
+**Discover → View profile** opens the member's profile in an accessible in-page
+preview, with **Back to results** and **Send invitation** actions; no navigation
+away from Discover is needed. Direct invitations remain available from results.
+Only a complementary adult role can be invited, and an invitation does not
+start a contract until the other account accepts.
+
+Any discoverable member can be previewed. When their extended showcase is off,
+the preview returns only their existing public handle, role and account bio.
+Private likes, dislikes, dedication, boundaries, statistics and activity are
+never exposed. The public profile route /u/{handle} uses the same privacy rules.

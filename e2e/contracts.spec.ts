@@ -93,9 +93,19 @@ test("interactive debt contract: publish, propose, consent, random modules, task
   const sub=await makeUser(browser,"SUB","subc_"+stamp)
   let templateId=""
   try{
-    // Private-by-default: even another adult user cannot view an unpublished showcase.
+    // A discoverable adult profile has a limited public summary, but no
+    // unpublished dedication, interests, statistics, badges or activity.
     const hidden=await dom.page.request.get("/api/showcase?handle="+encodeURIComponent(sub.handle))
-    expect(hidden.status()).toBe(404)
+    expect(hidden.status()).toBe(200)
+    const minimal=(await hidden.json())
+    expect(minimal.profile.handle).toBe(sub.handle)
+    expect(minimal.profile.showcaseEnabled).toBe(false)
+    expect(minimal.profile.likes).toEqual([])
+    expect(minimal.profile.dislikes).toEqual([])
+    expect(minimal.profile.dedication).toBe("")
+    expect(minimal.stats).toBeUndefined()
+    expect(minimal.badges).toBeUndefined()
+    expect(minimal.activity).toBeUndefined()
     await tab(sub.page,"My profile")
     await expect(sub.page.getByLabel("DISPLAY NAME")).toBeVisible()
     await sub.page.getByLabel("DISPLAY NAME").fill("Thoughtful Partner")
@@ -140,8 +150,27 @@ test("interactive debt contract: publish, propose, consent, random modules, task
       await dom.page.waitForTimeout(1000)
     }
     await expect(profileResult).toBeVisible({timeout:15000})
-    await profileResult.getByRole("button",{name:/Invite/}).click()
+    await expect(profileResult.getByRole("button",{name:"View profile"})).toBeVisible()
+    await expect(profileResult.getByText("Puzzle games")).toBeVisible()
+    // Review details without leaving Discover, then send the invitation from
+    // the full preview rather than relying only on the result card summary.
+    await profileResult.getByRole("button",{name:"View profile"}).click()
+    const dialog=dom.page.getByRole("dialog",{name:"Profile of @"+sub.handle})
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole("heading",{name:"Thoughtful Partner"})).toBeVisible()
+    await expect(dialog.getByText("Puzzle games")).toBeVisible()
+    await expect(dialog.getByText("I value consistent check-ins and clear consent.")).toBeVisible()
+    await dialog.getByRole("button",{name:/Activity/}).click()
+    await expect(dialog.getByRole("heading",{name:"Activity timeline"})).toBeVisible()
+    await dialog.getByRole("button",{name:/Achievements/}).click()
+    await expect(dialog.getByRole("heading",{name:"Achievements"})).toBeVisible()
+    await dialog.getByRole("button",{name:"Back to results"}).click()
+    await expect(dialog).toHaveCount(0)
+    await profileResult.getByRole("button",{name:"View profile"}).click()
+    await dom.page.getByRole("dialog",{name:"Profile of @"+sub.handle})
+      .getByRole("button",{name:"Send invitation"}).click()
     await expect(dom.page.getByRole("status")).toContainText("Invitation sent")
+    await expect(dom.page.getByRole("dialog",{name:"Profile of @"+sub.handle})).toHaveCount(0)
     await tab(sub.page,"Connections")
     await sub.page.locator(".person").filter({hasText:"@"+dom.handle}).getByRole("button",{name:"Accept",exact:true}).click()
     await expect(sub.page.getByRole("status")).toContainText("Connection accepted")
