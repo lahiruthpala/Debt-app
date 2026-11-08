@@ -114,7 +114,11 @@ export async function GET(req: Request) {
     if (view === "discover") {
       const q = (new URL(req.url).searchParams.get("q") || "").trim().slice(0, 50)
       const { rows } = await getPool().query(
-        `SELECT id,handle,role,bio FROM profiles p WHERE p.id<>$1 AND p.role<>$2
+        `SELECT p.id,p.handle,p.role,p.bio,
+          COALESCE(sh.showcase_enabled,false) AS showcase_enabled,
+          CASE WHEN sh.showcase_enabled THEN sh.tagline ELSE '' END AS showcase_tagline
+          FROM profiles p LEFT JOIN profile_showcases sh ON sh.user_id=p.id
+          WHERE p.id<>$1 AND p.role<>$2 AND p.adult_confirmed=true
           AND p.discoverable=true AND (p.handle ILIKE $3 OR p.bio ILIKE $3)
           AND NOT EXISTS (SELECT 1 FROM connections c
             WHERE c.pair_key=$4 || ':' || p.id AND c.state IN ('pending','active','blocked'))
@@ -128,8 +132,11 @@ export async function GET(req: Request) {
     if (view === "connections") {
       const { rows } = await getPool().query(
         `SELECT c.id,c.sender_id,c.recipient_id,c.state,c.created_at,
-         p.handle AS other_handle,p.role AS other_role,p.bio AS other_bio
+         p.handle AS other_handle,p.role AS other_role,p.bio AS other_bio,
+         COALESCE(sh.showcase_enabled,false) AS other_showcase_enabled,
+         p.discoverable AS other_discoverable
          FROM connections c JOIN profiles p ON p.id=CASE WHEN c.sender_id=$1 THEN c.recipient_id ELSE c.sender_id END
+         LEFT JOIN profile_showcases sh ON sh.user_id=p.id
          WHERE (c.sender_id=$1 OR c.recipient_id=$1) AND c.state IN ('pending','active')
          ORDER BY c.updated_at DESC LIMIT 60`, [actor.id]
       )

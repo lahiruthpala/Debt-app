@@ -7,11 +7,12 @@ import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
 import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
+import {ProfileShowcaseEditor} from "./profile-showcase"
 import {UI_RELEASE} from "@/lib/ui-release"
 
 type Role = "dom" | "sub"
-type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean }
-type Connection = { id:string; sender_id:string; recipient_id:string; state:string; other_handle:string; other_role:Role; other_bio:string }
+type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean;showcase_enabled?:boolean;showcase_tagline?:string }
+type Connection = { id:string; sender_id:string; recipient_id:string; state:string; other_handle:string; other_role:Role; other_bio:string;other_showcase_enabled?:boolean;other_discoverable?:boolean }
 type Scene = { id:string; connection_id:string; status:string; connection_state:string; other_handle:string; other_role:Role; start_principal:number; principal:number; interest:number; penalties:number; monthly_rate:number; weekly_target:number; late_fee:number; last_roll_at:string|null }
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
@@ -284,12 +285,18 @@ export default function Dashboard() {
 
         {tab==="discover" && <div className="dash-card"><h3>Explore opt-in profiles</h3><p className="muted">Only adult profiles with the complementary role and discoverability enabled appear here. A connection starts only after they accept.</p>
           <form className="search-row" onSubmit={e=>{e.preventDefault();void searchProfiles(true)}}><input value={search} maxLength={50} placeholder={"Search "+(ownRole==="dom"?"sub":"Dom")+" handles or bios..."} onChange={e=>setSearch(e.target.value)}/><button className="btn btn-red" type="submit">Search</button></form>
-          {profiles.length===0?<div className="empty-inner">No available profiles found. Try another search.</div>:<div className="people-list">{profiles.map(p=><div className="person" key={p.id}><span className="avatar">{p.handle[0].toUpperCase()}</span><div className="person-info"><b>@{p.handle}</b><small>{p.role.toUpperCase()} · {p.bio||"Exploring fictional scenes"}</small></div><button className="btn btn-outline" disabled={busy} onClick={()=>act({action:"invite",targetId:p.id})}>Invite ↗</button></div>)}</div>}
+          {profiles.length===0?<div className="empty-inner">No available profiles found. Try another search.</div>:<div className="people-list">{profiles.map(p=><div className="person" key={p.id}><span className="avatar">{p.handle[0].toUpperCase()}</span><div className="person-info"><b>@{p.handle}</b>
+            <small>{p.role.toUpperCase()} · {p.showcase_tagline||p.bio||"Exploring fictional scenes"}</small></div>
+            <div className="person-actions">
+              {p.showcase_enabled&&<Link className="btn btn-quiet" href={"/u/"+encodeURIComponent(p.handle)}>View profile</Link>}
+              <button className="btn btn-outline" disabled={busy} onClick={()=>act({action:"invite",targetId:p.id})}>Invite ↗</button>
+            </div></div>)}</div>}
         </div>}
 
         {tab==="connections" && <>
           <div className="dash-card"><h3>Your connections</h3><p className="muted">Invitations are private. You can decline, disconnect or block another account at any time.</p>
             {!connections.length?<div className="empty-inner">No connections yet. Visit Discover to send an invitation.</div>:<div className="people-list">{connections.map(c=><div className="person" key={c.id}><span className="avatar">{c.other_handle[0]?.toUpperCase()}</span><div className="person-info"><b>@{c.other_handle} <span className={"status status-"+c.state}>{c.state}</span></b><small>{c.other_role.toUpperCase()} · {c.state==="pending"?(c.recipient_id===me.id?"Awaiting your response":"Invitation sent"):"Mutually connected"}</small></div><div className="person-actions">
+              {c.other_showcase_enabled&&c.other_discoverable&&<Link className="btn btn-quiet" href={"/u/"+encodeURIComponent(c.other_handle)}>View profile</Link>}
               {c.state==="pending" && c.recipient_id===me.id && <><button className="btn btn-red" disabled={busy} onClick={()=>act({action:"connection",id:c.id,decision:"accept"})}>Accept</button><button className="btn btn-outline" disabled={busy} onClick={()=>act({action:"connection",id:c.id,decision:"decline"})}>Decline</button></>}
               <button className="btn btn-quiet" disabled={busy} onClick={()=>{if(window.confirm("End this connection?"))void act({action:"connection",id:c.id,decision:"end"})}}>Disconnect</button>
               <button className="btn btn-danger-soft" disabled={busy} onClick={()=>{if(window.confirm("Block this account? They will not be able to invite you again."))void act({action:"connection",id:c.id,decision:"block"})}}>Block</button>
@@ -328,12 +335,13 @@ export default function Dashboard() {
           </>}
         </>}
 
-        {tab==="profile" && <div className="dash-card profile-setup"><div className="eyebrow">YOUR PUBLIC IDENTITY</div><h2>@{profile.handle} <span className="status status-active">{initialRole}</span></h2><p className="muted">Only your handle and optional bio are visible to people searching. Your role is permanent for this account.</p>
+        {tab==="profile" && <><div className="dash-card profile-setup"><div className="eyebrow">YOUR PUBLIC IDENTITY</div><h2>@{profile.handle} <span className="status status-active">{initialRole}</span></h2><p className="muted">Only your handle and optional bio are visible to people searching. Your role is permanent for this account.</p>
           <form className="form-stack" onSubmit={saveProfile}><label>HANDLE<input value={pf.handle} required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" onChange={e=>setPf({...pf,handle:e.target.value})}/></label>
             <label>BIO<textarea rows={3} maxLength={280} value={pf.bio} onChange={e=>setPf({...pf,bio:e.target.value})}/></label>
             <label className="check-label"><input type="checkbox" checked={pf.discoverable} onChange={e=>setPf({...pf,discoverable:e.target.checked})}/><span>Show my profile in discovery</span></label>
             <button className="btn btn-red" type="submit" disabled={busy}>Save profile</button></form>
-        </div>}
+        </div>
+        <ProfileShowcaseEditor handle={profile.handle} onNotify={notify}/></>}
       </>}
       <footer className="dash-footer">◆ VELVET LEDGER <span>CONSTRUCTED FANTASY · NOT A LOAN, PAYMENT SERVICE OR LEGAL CONTRACT · CONSENT CAN BE WITHDRAWN ANYTIME</span></footer>
     </section>
