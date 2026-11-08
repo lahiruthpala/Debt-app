@@ -39,6 +39,17 @@ test("agreement transcription preserves accepted terms, game rules and consent",
   assert.equal(sections.filter(s=>s.heading.includes("[")).length,8)
   assert.ok(text.includes("The Sub uploads a non-explicit photo"))
 })
+test("basic mutually accepted scene generates an accurate PDF without invented games",async()=>{
+  const basic={...input,title:"Basic Ledger Agreement",category:"Basic Agreement",modules:[]}
+  const sections=agreementSections(basic)
+  const paragraphs=sections.flatMap(s=>s.paragraphs).join(" ")
+  assert.ok(paragraphs.includes("No optional interactive modules were included"))
+  assert.ok(paragraphs.includes("Starting balance: LKR 85,000"))
+  const bytes=await renderAgreementPdf(basic)
+  const parsed=await PDFDocument.load(bytes)
+  assert.equal(parsed.getTitle(),"Accepted fantasy contract - Basic Ledger Agreement")
+  assert.ok(parsed.getPageCount()>=1)
+})
 test("journal prompt is included when a journal module is agreed",()=>{
   const changed={...input,modules:[{id:id(),name:"Private Journal",type:"journal" as const,prompt:"Reflect on your boundaries and next step."}]}
   const text=agreementSections(changed).flatMap(s=>s.paragraphs).join(" ")

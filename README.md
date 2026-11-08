@@ -158,6 +158,10 @@ below Vercel Functions' request-size limit. If the store was created as
 
 When a Dom proposes an interactive contract and the Sub accepts it, both participants
 can select **Download accepted contract (PDF)** from **Contracts → My contracts**.
+For a basic ledger agreement created through **Connections**, both participants
+can select **Download agreed terms (PDF)** in **Overview** after acceptance.
+Basic documents include the original fictional terms and consent conditions and
+explicitly state that no custom interactive game modules were part of the agreement.
 The authenticated PDF shows both user handles and the in-app acceptance timestamp,
 the original fictional ledger terms, agreement description and category, every
 configured game/module and its exact options (including wheel outcomes, random

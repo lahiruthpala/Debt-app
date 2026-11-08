@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test"
+import {PDFDocument} from "pdf-lib"
 
 const id = () => Math.random().toString(36).slice(2, 10)
 const stamp = id()
@@ -101,12 +102,26 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await expect(domPage.getByRole("heading", { name: "Propose terms to @" + subHandle })).toBeVisible()
     await domPage.getByRole("button", { name: /Send scene proposal/ }).click()
     await expect(domPage.getByRole("status")).toContainText("Terms proposed")
+    const proposedScenes=await domPage.request.get("/api/studio?view=scenes")
+    expect(proposedScenes.status()).toBe(200)
+    const proposedId=(await proposedScenes.json()).scenes[0].id
+    expect((await domPage.request.get("/api/contracts/pdf?sceneId="+proposedId)).status()).toBe(404)
 
     await subPage.reload()
     await expect(subPage.getByRole("button", { name: "Approve & begin scene" })).toBeVisible()
     await subPage.getByRole("button", { name: "Approve & begin scene" }).click()
     await expect(subPage.getByRole("status")).toContainText("Scene activated")
     await expect(subPage.locator(".big-balance")).toHaveText("LKR 250,000")
+    const contractLink=subPage.getByRole("link",{name:/Download agreed terms/})
+    await expect(contractLink).toBeVisible()
+    const basicPdf=await subPage.request.get("/api/contracts/pdf?sceneId="+proposedId)
+    expect(basicPdf.status()).toBe(200)
+    expect(basicPdf.headers()["content-type"]).toMatch(/^application\/pdf/)
+    expect(basicPdf.headers()["content-disposition"]).toContain("attachment")
+    expect(basicPdf.headers()["cache-control"]).toContain("no-store")
+    const basicDocument=await PDFDocument.load(await basicPdf.body())
+    expect(basicDocument.getTitle()).toContain("Fictional Ledger Agreement")
+    expect((await domPage.request.get("/api/contracts/pdf?sceneId="+proposedId)).status()).toBe(200)
 
     // Publish an original game and play it as both members of the approved scene.
     const creativeTitle = "Story_" + stamp
@@ -315,6 +330,8 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     subPage.once("dialog", dialog => dialog.accept())
     await domConnection.getByRole("button", { name: "Block" }).click()
     await expect(subPage.getByRole("status")).toContainText("Connection blocked")
+    // A blocked ex-partner cannot keep downloading the private accepted agreement.
+    expect((await domPage.request.get("/api/contracts/pdf?sceneId="+sceneId)).status()).toBe(404)
     await visit(domPage, "Discover")
     await domPage.getByPlaceholder(/Search sub handles or bios/).fill(subHandle)
     await domPage.getByRole("button", { name: "Search", exact: true }).click()
@@ -334,6 +351,7 @@ test("public routes load; unauthenticated studio operations are denied", async (
   expect(health.status()).toBe(200)
   expect((await health.json()).status).toBe("ready")
   expect((await request.get("/api/studio?view=connections")).status()).toBe(401)
+  expect((await request.get("/api/contracts/pdf?sceneId=11111111-1111-4111-8111-111111111111")).status()).toBe(401)
   expect((await request.post("/api/studio", { data: { action: "profile" } })).status()).toBe(403)
   const blocked = await request.post("/api/studio", {
     headers: { origin: apiOrigin }, data: { action: "profile" },
