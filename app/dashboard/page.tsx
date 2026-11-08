@@ -5,6 +5,7 @@ import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
+import QuickGameGallery from "./quick-game-gallery"
 
 type Role = "dom" | "sub"
 type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean }
@@ -13,7 +14,7 @@ type Scene = { id:string; connection_id:string; status:string; connection_state:
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
 type Details = { scene:Scene; events:Event[]; challenges:Challenge[] }
-type Tab = "overview"|"discover"|"connections"|"contracts"|"stories"|"games"|"profile"
+type Tab = "overview"|"discover"|"connections"|"games"|"profile"
 
 const money=(n:number)=>"LKR "+Number(n || 0).toLocaleString("en-US")
 const date=(d:string)=>new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
@@ -170,8 +171,8 @@ export default function Dashboard() {
       <div className="rail-caption">WORKSPACE</div>
       {([
         ["overview","▦","Overview"],["discover","⌕","Discover"],["connections","◇","Connections"],
-        ["contracts","◈","Contracts"],["stories","✦","Story games"],["games","♢","Game room"],["profile","◎","My profile"],
-      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories")void refresh()}}>
+        ["games","♢","Game room"],["profile","◎","My profile"],
+      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
       <div className="rail-bottom"><div className="rail-legal">18+ CONSENSUAL ROLEPLAY<br/>ALL BALANCES ARE FICTIONAL</div>
@@ -181,7 +182,7 @@ export default function Dashboard() {
     <section className="app-main">
       <div className="app-topline">
         <div><span className="eyebrow">THE PRIVATE STUDIO / {tab.toUpperCase()}</span>
-          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":"Your identity"}</h1></div>
+          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="games"?"The game room":"Your identity"}</h1></div>
         <div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div>
       </div>
       {(error || message) && <div className="feedback-layer">
@@ -278,12 +279,15 @@ export default function Dashboard() {
           </form>)}
         </>}
 
-        {tab==="contracts" && <ContractStudio connections={connections} role={profile.role} onNotify={notify} onChanged={refresh}/>}
-        {tab==="stories" && <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>}
         {tab==="games" && <>
-          <div className="quick-room-intro"><div><span className="eyebrow">INSTANT PLAY · FICTIONAL CREDITS</span><h2>Pick a game. Play a round.</h2><p>Quick mini-games for an active connection, with clear outcomes and limited plays. For custom contracts or open-ended stories, use their separate workspaces.</p></div><div className="quick-room-links"><button type="button" className="btn btn-outline" onClick={()=>setTab("contracts")}>Contract studio ↗</button><button type="button" className="btn btn-outline" onClick={()=>setTab("stories")}>Story games ↗</button></div></div>
+          <ContractStudio connections={connections} role={profile.role} onNotify={notify} onChanged={refresh}/>
+          <div className="section-title contract-story-divider"><h2>Open-ended story games</h2><span>COMMUNITY NARRATIVE GAMES</span></div>
+          <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>
+          <div className="section-title community-classics"><h2>Studio classics</h2><span>BUILT-IN GAMES & TOOLS</span></div>
           {!scene?<div className="empty-block"><h2>Start a scene to unlock the game room.</h2><p>Connect with a partner and activate a consensual fictional ledger first.</p><button className="btn btn-red" onClick={()=>setTab("discover")}>Find a partner ↗</button></div>:<>
             <div className="scene-picker">{scenes.map(s=><button className={"scene-chip "+(selected===s.id?"selected":"")} key={s.id} onClick={()=>{setSelected(s.id);void loadDetails(s.id)}}>@{s.other_handle} <span className={"status status-"+s.status}>{s.status}</span></button>)}</div>
+            <QuickGameGallery sceneId={selected} active={active} role={profile.role} onNotify={notify} onChanged={refresh}/>
+            <div className="section-title quick-classics-heading"><h2>Studio classics</h2><span>THE ORIGINAL COLLECTION</span></div>
             <div className="game-grid">
               <div className="game-card dice-card"><div className="eyebrow">GAME 01 / LUCK</div><div className="game-symbol">⚄</div><h2>Debt Dice</h2><p>Once per 24 hours, the sub may roll a six-sided die. Outcomes range from 5,000 imaginary credits off the ledger to 2,000 added. Results are server-generated and recorded.</p><button className="btn btn-red" disabled={busy||!active||ownRole!=="sub"} onClick={()=>sceneAction("roll")}>Roll the dice ⚄</button>{!active&&<small>Activate the scene to play.</small>}</div>
               <div className="game-card planner-card"><div className="eyebrow">GAME 02 / STRATEGY</div><div className="game-symbol">▥</div><h2>The payoff lab</h2><p>Experiment with weekly fictional credits and see how long clearing the current balance would take—without changing the real ledger.</p><div className="planner-input"><span>WEEKLY CREDIT</span><strong>{money(forecast)}</strong></div><input type="range" min={1000} max={50000} step={1000} value={forecast} onChange={e=>setForecast(Number(e.target.value))}/><div className="planner-result"><b>{Math.ceil(total/forecast)}</b><span>estimated weeks<br/>ignoring future charges</span></div></div>
