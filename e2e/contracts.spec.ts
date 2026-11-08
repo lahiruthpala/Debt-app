@@ -46,6 +46,27 @@ async function json(page:Page,url:string){
   return response.json()
 }
 function total(scene:any){return scene.principal+scene.interest+scene.penalties}
+
+const liveProofs=process.env.PLAYWRIGHT_SKIP_WEBSERVER==="1"
+const testPhoto=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+b2S8AAAAASUVORK5CYII=","base64")
+async function uploadProof(page:Page,selector:string) {
+  const form=page.locator(selector).first()
+  await form.locator('input[type="file"]').setInputFiles({name:"synthetic-pixel.png",mimeType:"image/png",buffer:testPhoto})
+  await form.getByRole("checkbox").check()
+  await form.getByRole("button",{name:/Submit for review/}).click()
+  await expect(page.locator(".action-toast")).toContainText("Private proof submitted",{timeout:30000})
+}
+async function approveProof(page:Page,kind:string){
+  const card=page.locator(".proof-center .proof-item").filter({hasText:kind}).first()
+  await expect(card).toBeVisible({timeout:15000})
+  await card.getByRole("button",{name:"View private image"}).click()
+  const img=card.locator("img")
+  await expect(img).toBeVisible()
+  await expect.poll(()=>img.evaluate(el=>(el as HTMLImageElement).naturalWidth>0),{timeout:15000}).toBe(true)
+  await card.getByRole("button",{name:"Approve proof"}).click()
+  await expect(page.locator(".action-toast")).toContainText("Proof approved")
+}
+
 test("interactive debt contract: publish, propose, consent, random modules, task review and exit",async({browser})=>{
   const dom=await makeUser(browser,"DOM","domc_"+stamp)
   const sub=await makeUser(browser,"SUB","subc_"+stamp)
@@ -163,14 +184,42 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     })
     expect(subReview.status()).toBe(403)
 
+    if(liveProofs){
+      await uploadProof(sub.page,".contract-task .proof-uploader")
+      const direct=await dom.page.request.post("/api/contracts",{
+        headers:{origin},data:{action:"review",sceneId:scene.scene_id,claimId:claim.id,approve:true}
+      })
+      expect(direct.status()).toBe(409)
+    }
     await dom.page.reload()
     await tab(dom.page,"Contracts")
     await dom.page.getByRole("button",{name:/My contracts/}).click()
-    await dom.page.locator(".contract-task").getByRole("button",{name:"Approve",exact:true}).click()
-    await expect(dom.page.getByRole("status")).toContainText("Task approved")
+    if(liveProofs){
+      await approveProof(dom.page,"Contract task proof")
+      const repeat=await dom.page.request.patch("/api/proofs",{
+        headers:{origin},data:{id:(await json(dom.page,"/api/proofs?sceneId="+scene.scene_id)).proofs[0].id,approve:true}
+      })
+      expect(repeat.status()).toBe(409)
+    }else{
+      await dom.page.locator(".contract-task").getByRole("button",{name:"Approve",exact:true}).click()
+      await expect(dom.page.getByRole("status")).toContainText("Task approved")
+    }
     const reviewed=await json(dom.page,"/api/contracts?view=scene&id="+scene.scene_id)
     expect(reviewed.claims.find((c:{id:string})=>c.id===claim.id).state).toBe("approved")
 
+    if(liveProofs){
+      await tab(sub.page,"Overview")
+      const beforePayment=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
+      await uploadProof(sub.page,'.dash-card:has-text("Simulated payments") .proof-uploader')
+      const waiting=await json(sub.page,"/api/contracts?view=scene&id="+scene.scene_id)
+      expect(total(waiting.scene)).toBe(total(beforePayment.scene))
+      await tab(dom.page,"Overview")
+      await approveProof(dom.page,"Simulated payment proof")
+      const paid=await json(dom.page,"/api/contracts?view=scene&id="+scene.scene_id)
+      expect(total(paid.scene)).toBeLessThan(total(beforePayment.scene))
+      await tab(dom.page,"Contracts")
+      await dom.page.getByRole("button",{name:/My contracts/}).click()
+    }
     await dom.page.getByRole("button",{name:/Pause all games/}).click()
     await expect(dom.page.getByRole("status")).toContainText("Scene paused")
     const paused=await sub.page.request.post("/api/contracts",{
@@ -226,6 +275,22 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     await expect(sub.page.getByRole("button",{name:"Mark locked"})).toBeEnabled()
     await sub.page.getByRole("button",{name:"Mark locked"}).click()
     await expect(sub.page.getByRole("status")).toContainText("Lock status recorded")
+    if(liveProofs){
+      await uploadProof(sub.page,'.boundary-lock .proof-uploader')
+      await dom.page.reload()
+      await tab(dom.page,"Contracts")
+      await dom.page.getByRole("button",{name:/My contracts/}).click()
+      await approveProof(dom.page,"Lock-status proof")
+      const lockedEvidence=(await json(sub.page,"/api/proofs?sceneId="+curatedScene.scene_id)).proofs
+        .find((p:{kind:string})=>p.kind==="lock")
+      expect(lockedEvidence.status).toBe("approved")
+      const remove=await sub.page.request.delete("/api/proofs",{
+        headers:{origin},data:{id:lockedEvidence.id}
+      })
+      expect(remove.status()).toBe(200)
+      const noImage=await sub.page.request.get("/api/proofs?view=image&id="+lockedEvidence.id)
+      expect(noImage.status()).toBe(404)
+    }
     await sub.page.getByRole("button",{name:"Request unlock review"}).click()
     await expect(sub.page.getByRole("status")).toContainText("Request sent")
     const unlockRequested=await json(sub.page,"/api/contract-boundaries?sceneId="+curatedScene.scene_id)

@@ -4,6 +4,8 @@ const id = () => Math.random().toString(36).slice(2, 10)
 const stamp = id()
 const password = "E2eTestPass!2026"
 const apiOrigin = new URL(process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000").origin
+const liveProofs=process.env.PLAYWRIGHT_SKIP_WEBSERVER==="1"
+const testPhoto=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+b2S8AAAAASUVORK5CYII=","base64")
 
 async function submitSignup(page: Page) {
   for(let attempt=0;attempt<3;attempt++){
@@ -252,6 +254,34 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await quest.getByRole("button", { name: "Complete" }).click()
     await expect(subPage.getByRole("status")).toContainText("Challenge completed")
     await expect(quest).toContainText("Completed")
+    if(liveProofs){
+      await domPage.getByRole("button",{name:"Issue challenge"}).click()
+      await expect(domPage.locator(".action-toast")).toContainText("Challenge posted")
+      await subPage.reload()
+      await visit(subPage,"Game room")
+      const nextChallenge=subPage.locator(".quest").filter({hasText:"Balance audit"}).filter({has:subPage.getByRole("button",{name:"Complete"})}).first()
+      await expect(nextChallenge).toBeVisible()
+      const form=nextChallenge.locator(".proof-uploader")
+      await form.locator('input[type="file"]').setInputFiles({name:"synthetic-pixel.png",mimeType:"image/png",buffer:testPhoto})
+      await form.getByRole("checkbox").check()
+      await form.getByRole("button",{name:/Submit for review/}).click()
+      await expect(subPage.locator(".action-toast")).toContainText("Private proof submitted")
+      const second=await subPage.request.get("/api/studio?view=scene&id="+sceneId)
+      const proofList=(await (await subPage.request.get("/api/proofs?sceneId="+sceneId)).json()).proofs
+      const challengeProof=proofList.find((p:{kind:string})=>p.kind==="challenge")
+      expect(challengeProof).toBeTruthy()
+      const directComplete=await subPage.request.post("/api/studio",{
+        headers:{origin:apiOrigin},
+        data:{action:"complete",sceneId,challengeId:challengeProof.challenge_id}
+      })
+      expect(directComplete.status()).toBe(409)
+      await domPage.reload()
+      await visit(domPage,"Game room")
+      const card=domPage.locator(".proof-center .proof-item").filter({hasText:"Challenge proof"}).first()
+      await expect(card).toBeVisible()
+      await card.getByRole("button",{name:"Approve proof"}).click()
+      await expect(domPage.locator(".action-toast")).toContainText("Proof approved")
+    }
 
     // Safe words are operational: either partner may pause or end, only the sub resumes.
     await domPage.reload()
@@ -300,6 +330,10 @@ test("public routes load; unauthenticated studio operations are denied", async (
   })
   expect(blocked.status()).toBe(401)
   expect((await request.get("/api/games?view=library")).status()).toBe(401)
+  expect((await request.get("/api/proofs?sceneId=11111111-1111-4111-8111-111111111111")).status()).toBe(401)
+  expect((await request.post("/api/proofs",{headers:{origin:apiOrigin},multipart:{sceneId:"11111111-1111-4111-8111-111111111111"}})).status()).toBe(401)
+  expect((await request.patch("/api/proofs",{headers:{origin:apiOrigin},data:{id:"11111111-1111-4111-8111-111111111111",approve:true}})).status()).toBe(401)
+
   expect((await request.get("/api/quick-games?sceneId=123")).status()).toBe(401)
   expect((await request.post("/api/quick-games", {data:{game:"coin",choice:"heads"}})).status()).toBe(403)
   expect((await request.post("/api/games", {data: {action:"create"}})).status()).toBe(403)
