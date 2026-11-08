@@ -55,7 +55,7 @@ test("user-defined weighted events obey server caps",()=>{
 })
 
 test("private status modules validate consent-forward boundaries and caps",()=>{
-  const id=n=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0")
+  const id=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0")
   const modules=[
     {id:id(1),type:"lock",name:"Voluntary keyholder",suggestedDays:30,checkinHours:24,keyholderLabel:"Chosen partner"},
     {id:id(2),type:"permission",name:"Permission status",initialStatus:"restricted",reminderHours:24},
