@@ -4,7 +4,7 @@ import type {ContractDefinition,ContractModule} from "@/lib/contract-rules"
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Connection={id:string;state:string;other_handle:string}
-type Template=ContractDefinition & {id:string;author_id:string;author_handle:string;published:boolean}
+type Template=ContractDefinition & {id:string;author_id:string;author_handle:string;published:boolean;is_official?:boolean}
 type Scene={scene_id:string;connection_id:string;title_snapshot:string;description_snapshot:string;
  modules_snapshot:ContractModule[];status:string;connection_state:string;other_handle:string;
  principal:number;interest:number;penalties:number;start_principal:number}
@@ -60,6 +60,7 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
   const [library,setLibrary]=useState<Template[]>([])
   const [mine,setMine]=useState<Template[]>([])
   const [search,setSearch]=useState("")
+  const [libraryFilter,setLibraryFilter]=useState<"all"|"official"|"community">("all")
   const [scenes,setScenes]=useState<Scene[]>([])
   const [sceneId,setSceneId]=useState("")
   const [detail,setDetail]=useState<Detail|null>(null)
@@ -67,6 +68,8 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
   const [busy,setBusy]=useState(false)
   const [lastOutcome,setLastOutcome]=useState<{moduleId:string;delta:number;details:Record<string,unknown>}|null>(null)
   const activeConnections=connections.filter(c=>c.state==="active")
+  const officialCount=library.filter(t=>t.is_official).length
+  const shownTemplates=library.filter(t=>libraryFilter==="all" || Boolean(t.is_official)===(libraryFilter==="official"))
   const current=scenes.find(s=>s.scene_id===sceneId)
   const configured=current?.modules_snapshot||[]
   const total=current?current.principal+current.interest+current.penalties:0
@@ -284,14 +287,19 @@ export default function ContractStudio({connections,role,onNotify,onChanged}:{
         <input aria-label="Search debt contract templates" placeholder="Search interactive contracts, strategies, categories…" value={search} maxLength={80} onChange={e=>setSearch(e.target.value)}/>
         <button className="btn btn-red" type="submit">Search contracts</button>
       </form>
-      <div className="section-title"><h2>Community contract templates</h2><span>CONFIGURE · ADAPT · SHARE</span></div>
+      <div className="section-title"><h2>Game template gallery</h2><span>20 OFFICIAL RECIPES + COMMUNITY CREATIONS</span></div>
+      <div className="template-filter-tabs" role="group" aria-label="Template category filter">
+        <button className={libraryFilter==="all"?"chosen":""} onClick={()=>setLibraryFilter("all")}>All ({library.length})</button>
+        <button className={libraryFilter==="official"?"chosen":""} onClick={()=>setLibraryFilter("official")}>✦ Official ({officialCount})</button>
+        <button className={libraryFilter==="community"?"chosen":""} onClick={()=>setLibraryFilter("community")}>Community ({library.length-officialCount})</button>
+      </div>
       <div className="contract-template-grid">
-        {library.length===0?<p className="muted">No templates published yet. Create the first one.</p>:
-          library.map(t=><div className="contract-template" key={t.id}>
-            <small className="eyebrow">{t.category} · BY @{t.author_handle}</small><h3>{t.title}</h3><p>{t.description}</p>
+        {shownTemplates.length===0?<p className="muted">No matching games. Try a different search or filter.</p>:
+          shownTemplates.map(t=><div className={"contract-template "+(t.is_official?"official-template":"")} key={t.id}>
+            <small className="eyebrow">{t.is_official?"✦ OFFICIAL DESIGN":"COMMUNITY DESIGN"} · {t.category} · BY @{t.author_handle}</small><h3>{t.title}</h3><p>{t.description}</p>
             <div className="contract-template-value">{money(t.terms.principal)} <small>FICTIONAL START</small></div>
             <div className="contract-module-chips">{t.modules.map(m=><span key={m.id}>{icons[m.type]} {m.name}</span>)}</div>
-            <button className="btn btn-outline" onClick={()=>chooseTemplate(t,false)}>Customize this template ↗</button>
+            <button className="btn btn-outline" onClick={()=>chooseTemplate(t,false)}>Customize & play this template ↗</button>
           </div>)}
       </div>
       <div className="section-title contract-mine-title"><h2>My saved templates</h2><span>{mine.length} CREATED</span></div>

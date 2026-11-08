@@ -3,6 +3,7 @@ import type {PoolClient} from "pg"
 import {z} from "zod"
 import {getPool} from "@/lib/db"
 import {getAuth} from "@/lib/auth"
+import {findOfficialTemplates,officialTemplates} from "@/lib/official-templates"
 import {applyCredit} from "@/lib/ledger"
 import {availableAfterCooldown,contractDefinitionSchema,contractModuleSchema,duelDelta,weightedOutcome,checkinDelta,type ContractModule} from "@/lib/contract-rules"
 
@@ -95,7 +96,7 @@ export async function GET(req:Request){
           "ORDER BY t.published_at DESC NULLS LAST LIMIT 45",["%"+q+"%"]),
         getPool().query(common+"WHERE t.author_id=$1 ORDER BY t.updated_at DESC LIMIT 50",[actor.id])
       ])
-      return respond({library:library.rows,mine:mine.rows})
+      return respond({library:[...findOfficialTemplates(q),...library.rows],mine:mine.rows,officialCount:officialTemplates.length})
     }
     if(view==="scenes"){
       const {rows}=await getPool().query(

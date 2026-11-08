@@ -448,3 +448,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 @keyframes wheel-contract-spin{0%{transform:rotate(0deg)}75%{transform:rotate(950deg)}100%{transform:rotate(1080deg)}}
 .wheel-live.spinning{animation:wheel-contract-spin 1.15s cubic-bezier(.18,.75,.32,1) both}
 @media(prefers-reduced-motion:reduce){.wheel-live.spinning{animation:none}}
+
+/* Curated official game gallery */
+.template-filter-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.template-filter-tabs button{border:1px solid #614257;background:#241922;color:#e2bfd0;padding:9px 13px;border-radius:9px;font-size:.78rem;cursor:pointer}
+.template-filter-tabs button.chosen,.template-filter-tabs button:hover{background:#63334d;color:#fff;border-color:#cc91af}
+.contract-template.official-template{background:linear-gradient(135deg,#352136,#1b131c);border-color:#8a596c}
+.contract-template.official-template .eyebrow{color:#e8bd8c}
+.contract-template.official-template:hover{border-color:#f1c098}
