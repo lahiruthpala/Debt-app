@@ -289,9 +289,10 @@ CREATE TABLE IF NOT EXISTS proof_submissions (
   id uuid PRIMARY KEY,
   scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
   submitter_id text NOT NULL REFERENCES profiles(id),
-  kind varchar(12) NOT NULL CHECK (kind IN ('lock','task','payment')),
+  kind varchar(12) NOT NULL CHECK (kind IN ('lock','task','challenge','payment')),
   module_id uuid,
   claim_id uuid REFERENCES contract_task_claims(id),
+  challenge_id uuid REFERENCES challenges(id),
   amount integer CHECK (amount BETWEEN 1 AND 100000),
   note varchar(500) NOT NULL DEFAULT '',
   blob_path text,
@@ -305,12 +306,16 @@ CREATE TABLE IF NOT EXISTS proof_submissions (
   reviewed_at timestamptz,
   deleted_at timestamptz,
   CHECK (
-    (kind='lock' AND module_id IS NOT NULL AND claim_id IS NULL AND amount IS NULL)
-    OR (kind='task' AND claim_id IS NOT NULL AND module_id IS NULL AND amount IS NULL)
-    OR (kind='payment' AND amount IS NOT NULL AND module_id IS NULL AND claim_id IS NULL)
+    (kind='lock' AND module_id IS NOT NULL AND claim_id IS NULL AND challenge_id IS NULL AND amount IS NULL)
+    OR (kind='task' AND claim_id IS NOT NULL AND module_id IS NULL AND challenge_id IS NULL AND amount IS NULL)
+    OR (kind='payment' AND amount IS NOT NULL AND module_id IS NULL AND claim_id IS NULL AND challenge_id IS NULL)
+    OR (kind='challenge' AND challenge_id IS NOT NULL AND module_id IS NULL AND claim_id IS NULL AND amount IS NULL)
   )
 );
 CREATE INDEX IF NOT EXISTS proof_scene_queue_idx ON proof_submissions(scene_id,status,created_at DESC);
 CREATE INDEX IF NOT EXISTS proof_submitter_idx ON proof_submissions(submitter_id,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS proof_one_pending_per_claim_idx
   ON proof_submissions(claim_id) WHERE kind='task' AND status='pending' AND deleted_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS proof_one_pending_per_challenge_idx
+  ON proof_submissions(challenge_id) WHERE kind='challenge' AND status='pending' AND deleted_at IS NULL;

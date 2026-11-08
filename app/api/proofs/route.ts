@@ -11,7 +11,7 @@ import {canReviewProof,isAllowedImageType,maxProofBytes,proofReviewOutcome,type 
 export const runtime="nodejs"
 export const dynamic="force-dynamic"
 const uuid=z.string().uuid()
-const proofKind=z.enum(["lock","task","payment"])
+const proofKind=z.enum(["lock","task","challenge","payment"])
 const noteSchema=z.string().trim().max(500)
 class ProofError extends Error{constructor(public status:number,message:string){super(message)}}
 const json=(result:unknown,status=200)=>Response.json(result,{status,headers:{"Cache-Control":"private, no-store"}})
@@ -55,14 +55,14 @@ function active(scene:Scene){
   if(scene.status!=="active"||scene.connection_state!=="active")
     throw new ProofError(409,"An active, approved connection and scene are required")
 }
-async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:ProofKind,moduleId:string|null,claimId:string|null,amount:number|null){
+async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:ProofKind,moduleId:string|null,claimId:string|null,challengeId:string|null,amount:number|null){
   active(scene)
   if(kind==="payment"){
-    if(amount===null||!Number.isInteger(amount)||amount<1||amount>100000||moduleId||claimId)
+    if(amount===null||!Number.isInteger(amount)||amount<1||amount>100000||moduleId||claimId||challengeId)
       throw new ProofError(400,"Select a simulated credit amount of 1–100,000")
     if(scene.principal+scene.interest+scene.penalties<=0)throw new ProofError(409,"The fictional ledger is already clear")
   }else if(kind==="task"){
-    if(!claimId||moduleId||amount!==null)throw new ProofError(400,"Select a pending task claim")
+    if(!claimId||moduleId||challengeId||amount!==null)throw new ProofError(400,"Select a pending task claim")
     const {rows}=await db.query(
       "SELECT id,state FROM contract_task_claims WHERE id=$1 AND scene_id=$2 AND requested_by=$3",
       [claimId,scene.id,actorId])
@@ -71,8 +71,14 @@ async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:Proo
       "SELECT id FROM proof_submissions WHERE claim_id=$1 AND status='pending' AND deleted_at IS NULL LIMIT 1",
       [claimId])
     if(pending.rowCount)throw new ProofError(409,"A proof is already pending review for this task")
+  }else if(kind==="challenge"){
+    if(!challengeId||moduleId||claimId||amount!==null)throw new ProofError(400,"Select a challenge")
+    const {rows}=await db.query("SELECT id,state FROM challenges WHERE id=$1 AND scene_id=$2",[challengeId,scene.id])
+    if(!rows.length||rows[0].state!=="open")throw new ProofError(409,"Challenge is no longer open")
+    const pending=await db.query("SELECT id FROM proof_submissions WHERE challenge_id=$1 AND status='pending' AND deleted_at IS NULL LIMIT 1",[challengeId])
+    if(pending.rowCount)throw new ProofError(409,"Evidence already pending review for this challenge")
   }else{
-    if(!moduleId||claimId||amount!==null)throw new ProofError(400,"Select a lock-status module")
+    if(!moduleId||claimId||challengeId||amount!==null)throw new ProofError(400,"Select a lock-status module")
     const raw=scene.modules_snapshot
     const modules=Array.isArray(raw)?raw:typeof raw==="string"?JSON.parse(raw):[]
     if(!modules.some((m:{id?:string;type?:string})=>m.id===moduleId&&m.type==="lock"))
@@ -90,11 +96,11 @@ function failed(error:unknown){
 }
 type ProofRow={
  id:string;scene_id:string;submitter_id:string;kind:ProofKind;module_id:string|null;
- claim_id:string|null;amount:number|null;blob_path:string|null;status:ProofStatus;deleted_at:string|null
+ claim_id:string|null;challenge_id:string|null;amount:number|null;blob_path:string|null;status:ProofStatus;deleted_at:string|null
 }
 async function findProof(db:PoolClient,id:string,userId:string,lock=false):Promise<ProofRow>{
   const {rows}=await db.query(
-    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.amount,p.blob_path,p.status,p.deleted_at "+
+    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.blob_path,p.status,p.deleted_at "+
     "FROM proof_submissions p JOIN scenes s ON s.id=p.scene_id "+
     "JOIN connections c ON c.id=s.connection_id "+
     "WHERE p.id=$1 AND (c.sender_id=$2 OR c.recipient_id=$2) "+(lock?"FOR UPDATE OF p":""),
@@ -133,7 +139,7 @@ export async function GET(req:Request){
       const scene=await sceneFor(db,sceneId,actor.id)
       if(scene.connection_state!=="active")throw new ProofError(403,"This connection is not active")
       const {rows}=await db.query(
-        "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.amount,p.note,p.status,"+
+        "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.note,p.status,"+
         "p.created_at,p.reviewed_at,p.review_note,p.deleted_at,u.handle AS submitter_handle,"+
         "r.handle AS reviewer_handle,p.submitter_id "+
         "FROM proof_submissions p JOIN profiles u ON u.id=p.submitter_id "+
@@ -158,6 +164,7 @@ export async function POST(req:Request){
     const kind=parsed(proofKind,form.get("kind"))
     const moduleId=kind==="lock"?parsed(uuid,form.get("moduleId")):null
     const claimId=kind==="task"?parsed(uuid,form.get("claimId")):null
+    const challengeId=kind==="challenge"?parsed(uuid,form.get("challengeId")):null
     const amount=kind==="payment"?parsed(z.coerce.number().int().min(1).max(100000),form.get("amount")):null
     const note=parsed(noteSchema,form.get("note")||"")
     if(form.get("consent")!=="yes")throw new ProofError(400,"Confirm that your image is non-explicit and shared voluntarily")
@@ -170,7 +177,7 @@ export async function POST(req:Request){
     const pre=await getPool().connect()
     try{
       const scene=await sceneFor(pre,sceneId,actor.id)
-      await validateTarget(pre,scene,actor.id,kind,moduleId,claimId,amount)
+      await validateTarget(pre,scene,actor.id,kind,moduleId,claimId,challengeId,amount)
       const daily=await pre.query<{count:number}>(
         "SELECT count(*)::int AS count FROM proof_submissions WHERE submitter_id=$1 AND created_at>now()-interval '24 hours'",[actor.id])
       if(daily.rows[0].count>=12)throw new ProofError(429,"You can upload at most 12 proofs per day")
@@ -195,7 +202,7 @@ export async function POST(req:Request){
     db=await getPool().connect()
     await db.query("BEGIN");transaction=true
     const scene=await sceneFor(db,sceneId,actor.id,true)
-    await validateTarget(db,scene,actor.id,kind,moduleId,claimId,amount)
+    await validateTarget(db,scene,actor.id,kind,moduleId,claimId,challengeId,amount)
     const daily=await db.query<{count:number}>(
       "SELECT count(*)::int AS count FROM proof_submissions WHERE submitter_id=$1 AND created_at>now()-interval '24 hours'",[actor.id])
     if(daily.rows[0].count>=12)throw new ProofError(429,"Daily private proof limit reached")
@@ -203,9 +210,9 @@ export async function POST(req:Request){
       "SELECT count(*)::int AS count FROM proof_submissions WHERE scene_id=$1 AND status='pending' AND deleted_at IS NULL",[sceneId])
     if(pending.rows[0].count>=20)throw new ProofError(429,"Too many proofs are waiting for review")
     await db.query(
-      "INSERT INTO proof_submissions(id,scene_id,submitter_id,kind,module_id,claim_id,amount,note,blob_path,bytes) "+
-      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-      [proofId,sceneId,actor.id,kind,moduleId,claimId,amount,note,uploaded,data.length])
+      "INSERT INTO proof_submissions(id,scene_id,submitter_id,kind,module_id,claim_id,challenge_id,amount,note,blob_path,bytes) "+
+      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+      [proofId,sceneId,actor.id,kind,moduleId,claimId,challengeId,amount,note,uploaded,data.length])
     await db.query("COMMIT");transaction=false
     inserted=true
     return json({id:proofId,message:"Private proof submitted. Your connected partner can review it."},201)
@@ -272,6 +279,21 @@ export async function PATCH(req:Request){
         "INSERT INTO contract_action_log(id,scene_id,module_id,actor_id,action,delta,details) "+
         "VALUES($1,$2,$3,$4,'proof_review',$5,$6)",
         [randomUUID(),scene.id,claim.module_id,actor.id,-credited,JSON.stringify({proofId:id,kind:"task",approved:true})])
+    }
+    if(outcome==="approve_challenge"){
+      const {rows}=await db.query(
+        "SELECT * FROM challenges WHERE id=$1 AND scene_id=$2 FOR UPDATE",[proof.challenge_id,scene.id])
+      const challenge=rows[0]
+      if(!challenge||challenge.state!=="open")throw new ProofError(409,"Challenge is no longer open")
+      const next=applyCredit(scene,challenge.reward)
+      credited=next.credited
+      await db.query("UPDATE scenes SET principal=$1,interest=$2,penalties=$3,updated_at=now() WHERE id=$4",
+        [next.principal,next.interest,next.penalties,scene.id])
+      await db.query("UPDATE challenges SET state='completed',completed_at=now() WHERE id=$1",[challenge.id])
+      await db.query(
+        "INSERT INTO ledger_events(id,scene_id,actor_id,type,amount,detail) VALUES($1,$2,$3,'challenge_proof',$4,$5)",
+        [randomUUID(),scene.id,actor.id,-credited,"Approved challenge completion with private photo evidence"]
+      )
     }
     if(proof.kind==="lock"){
       await db.query(
