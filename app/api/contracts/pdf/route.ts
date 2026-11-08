@@ -23,7 +23,7 @@ export async function GET(req:Request){
       "SELECT s.id,s.status,s.created_at,s.approved_at,s.start_principal,s.monthly_rate,s.weekly_target,s.late_fee,"+
       "sc.title_snapshot,sc.description_snapshot,sc.category_snapshot,sc.modules_snapshot,"+
       "dom.handle AS dom_handle,sub.handle AS sub_handle "+
-      "FROM scene_contracts sc JOIN scenes s ON s.id=sc.scene_id "+
+      "FROM scenes s LEFT JOIN scene_contracts sc ON sc.scene_id=s.id "+
       "JOIN connections c ON c.id=s.connection_id "+
       "JOIN profiles dom ON dom.id=CASE WHEN c.sender_id IN (SELECT id FROM profiles WHERE role='dom') THEN c.sender_id ELSE c.recipient_id END "+
       "JOIN profiles sub ON sub.id=CASE WHEN c.sender_id IN (SELECT id FROM profiles WHERE role='sub') THEN c.sender_id ELSE c.recipient_id END "+
@@ -31,10 +31,13 @@ export async function GET(req:Request){
       [id.data,session.user.id])
     if(!rows.length)return Response.json({error:"Accepted contract unavailable"},{status:404,headers:noStore})
     const s=rows[0]
-    const modules=z.array(contractModuleSchema).min(1).max(8).safeParse(s.modules_snapshot)
+    const modules=z.array(contractModuleSchema).max(8).safeParse(s.modules_snapshot??[])
     if(!modules.success)return Response.json({error:"Invalid accepted contract data"},{status:500,headers:noStore})
     const pdf=await renderAgreementPdf({
-      id:s.id,title:s.title_snapshot,description:s.description_snapshot,category:s.category_snapshot,
+      id:s.id,
+      title:s.title_snapshot??"Fictional Ledger Agreement",
+      description:s.description_snapshot??"A basic fictional ledger proposed by the Dom and expressly accepted by the Sub. No custom interactive game modules were included.",
+      category:s.category_snapshot??"Basic Agreement",
       domHandle:s.dom_handle,subHandle:s.sub_handle,proposedAt:new Date(s.created_at).toISOString(),
       acceptedAt:new Date(s.approved_at).toISOString(),
       terms:{principal:s.start_principal,monthlyRate:s.monthly_rate,

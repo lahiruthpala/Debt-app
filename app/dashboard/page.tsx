@@ -13,7 +13,7 @@ import {UI_RELEASE} from "@/lib/ui-release"
 type Role = "dom" | "sub"
 type Profile = { id:string; handle:string; role:Role; bio:string; discoverable:boolean;showcase_enabled?:boolean;showcase_tagline?:string }
 type Connection = { id:string; sender_id:string; recipient_id:string; state:string; other_handle:string; other_role:Role; other_bio:string;other_showcase_enabled?:boolean;other_discoverable?:boolean }
-type Scene = { id:string; connection_id:string; status:string; connection_state:string; other_handle:string; other_role:Role; start_principal:number; principal:number; interest:number; penalties:number; monthly_rate:number; weekly_target:number; late_fee:number; last_roll_at:string|null }
+type Scene = { id:string; connection_id:string; status:string; connection_state:string; other_handle:string; other_role:Role; start_principal:number; principal:number; interest:number; penalties:number; monthly_rate:number; weekly_target:number; late_fee:number; last_roll_at:string|null;approved_at:string|null }
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
 type Details = { scene:Scene; events:Event[]; challenges:Challenge[] }
@@ -262,6 +262,9 @@ export default function Dashboard() {
                   {scene.status==="active" && <button disabled={busy} className="btn btn-outline" onClick={()=>sceneAction("pause")}>Ⅱ Pause scene</button>}
                   {scene.status==="paused" && ownRole==="sub" && <button disabled={busy} className="btn btn-red" onClick={()=>sceneAction("resume")}>Resume with consent</button>}
                   {scene.status!=="ended" && <button disabled={busy} className="btn btn-danger-soft" onClick={()=>sceneAction("end")}>End scene permanently</button>}
+                  {scene.approved_at&&<a className="btn btn-outline"
+                    href={"/api/contracts/pdf?sceneId="+encodeURIComponent(scene.id)}
+                    download={"accepted-agreement-"+scene.id.slice(0,8)+".pdf"}>↓ Download agreed terms (PDF)</a>}
                 </div>
               </div>
               <div className="dash-card">

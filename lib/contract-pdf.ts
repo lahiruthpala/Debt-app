@@ -2,7 +2,7 @@ import {PDFDocument,StandardFonts,rgb,type PDFFont,type PDFPage} from "pdf-lib"
 import {contractModuleSchema,type ContractModule} from "./contract-rules.ts"
 import {z} from "zod"
 
-const modulesSchema=z.array(contractModuleSchema).min(1).max(8)
+const modulesSchema=z.array(contractModuleSchema).max(8)
 export type AgreementPdfInput={
   id:string;title:string;description:string;category:string;
   domHandle:string;subHandle:string;proposedAt:string;acceptedAt:string;
@@ -39,6 +39,12 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
       "The modules below are a snapshot of the agreed games, rules, tasks and conditions. The PDF is a record of terms, not a live balance statement."
     ]}
   ]
+  if(parsed.length===0){
+    sections.push({heading:"Included games and modules",paragraphs:[
+      "No optional interactive modules were included in this basic agreement.",
+      "Separate games in the Game Room, if played later, have their own in-app rules and are not represented as accepted modules in this document."
+    ]})
+  }
   parsed.forEach((module,index)=>{
     const body:string[]=[]
     switch(module.type){
