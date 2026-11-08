@@ -1,5 +1,6 @@
 import {randomInt,randomUUID} from "node:crypto"
 import {z} from "zod"
+import type {PoolClient} from "pg"
 import {getAuth} from "@/lib/auth"
 import {getPool} from "@/lib/db"
 import {applyCredit} from "@/lib/ledger"
@@ -62,7 +63,7 @@ export async function GET(req:Request){
   }catch(error){return errorReply(error)}
 }
 export async function POST(req:Request){
-  let db:Awaited<ReturnType<ReturnType<typeof getPool>["connect"]>>|null=null
+  let db:PoolClient|null=null
   let started=false
   try{
     verifyOrigin(req)
