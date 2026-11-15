@@ -595,7 +595,7 @@ CREATE TRIGGER ops_notify_occurrences AFTER UPDATE ON scene_ritual_occurrences F
 DROP TRIGGER IF EXISTS ops_notify_redemptions ON scene_reward_redemptions;
 CREATE TRIGGER ops_notify_redemptions AFTER INSERT OR UPDATE ON scene_reward_redemptions FOR EACH ROW EXECUTE FUNCTION ops_notify_existing_events();
 
-CREATE OR REPLACE FUNCTION ops_award_completed_events() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE OR REPLACE FUNCTION ops_award_completed_events() RETURNS trigger LANGUAGE plpgsql AS $ops_points$
 DECLARE turn_count integer;
 BEGIN
  -- Use distinct table branches: record fields differ and SQL boolean expressions
@@ -649,7 +649,7 @@ BEGIN
    END IF;
  END IF;
  RETURN NEW;
-END $$;
+END $ops_points$;
 DROP TRIGGER IF EXISTS ops_points_proofs ON proof_submissions;
 CREATE TRIGGER ops_points_proofs AFTER UPDATE ON proof_submissions FOR EACH ROW EXECUTE FUNCTION ops_award_completed_events();
 DROP TRIGGER IF EXISTS ops_points_claims ON contract_task_claims;
