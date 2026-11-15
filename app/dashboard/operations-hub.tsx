@@ -73,6 +73,9 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
   const [scenario,setScenario]=useState<ScenarioWeek[]>([])
   const [ack,setAck]=useState(false)
   const [signerName,setSignerName]=useState("")
+  const [clauseIndex,setClauseIndex]=useState(0)
+  const [confirmedClauses,setConfirmedClauses]=useState<string[]>([])
+  const [audit,setAudit]=useState<any[]>([])
   const [viewAdmin,setViewAdmin]=useState(false)
   const [cleanup,setCleanup]=useState<any>(null)
   const requestId=useRef(0)
@@ -163,8 +166,12 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
     finally{setBusy(false)}
   }
   useEffect(()=>{
-    fetch("/api/maintenance",{cache:"no-store"}).then(result=>{
-      if(result.ok)setViewAdmin(true)
+    fetch("/api/maintenance",{cache:"no-store"}).then(async result=>{
+      if(result.ok){
+        setViewAdmin(true)
+        const body=await result.json()
+        setAudit(body.audit||[])
+      }
     }).catch(()=>{})
   },[])
   const queue:QueueItem[]=data?.queue||[]
@@ -172,6 +179,30 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
   const balanceList:PointBalance[]=data?.balances||[]
   const ownBalance=balanceList.find(row=>row.user_id===meId)?.balance||0
   const activeQueue=queue.filter(item=>selectedQueue.includes(item.id))
+  const agreement=data?.agreement as {
+    title_snapshot?:string|null;description_snapshot?:string|null;modules_snapshot?:{name:string;type:string}[]|null;
+    start_principal?:number;monthly_rate?:number;weekly_target?:number;late_fee?:number
+  }|undefined
+  const clauses=[
+    {key:"scope",title:"01 · The fictional terms",body:
+      (agreement?.title_snapshot||"Basic fictional agreement")+" — "+(agreement?.description_snapshot||
+      "A mutually approved, voluntary fantasy ledger.")+
+      " Starting fictional principal: "+money(agreement?.start_principal||0)+
+      "; monthly rate: "+(agreement?.monthly_rate||0)+"%; weekly target: "+
+      money(agreement?.weekly_target||0)+"; agreed late fee: "+money(agreement?.late_fee||0)+
+      ". Interest and fees require explicit actions. No real payment is due."},
+    {key:"modules",title:"02 · Accepted games and modules",body:
+      agreement?.modules_snapshot?.length?agreement.modules_snapshot.map(module=>module.name+
+        " ("+module.type+")").join("; ")+
+        ". These are the modules recorded at the time of acceptance, not instructions to perform unagreed actions.":
+        "No optional contract modules were included in this basic agreement."},
+    {key:"consent",title:"03 · Real-world consent and safety",body:
+      "Either participant can pause or end the scene at any time. No withdrawal of consent can create penalties or prevent real-world actions. Any agreed schedule remains voluntary."},
+    {key:"privacy",title:"04 · Private records and optional signatures",body:
+      "Proofs, journals, rituals and game turns may be stored for this scene. Proof files can be erased by their uploader. This personal acknowledgment is non-binding roleplay and never replaces mutual acceptance."},
+  ]
+  const allRead=clauses.every(clause=>confirmedClauses.includes(clause.key))
+  const currentClause=clauses[Math.min(clauseIndex,clauses.length-1)]
 
   return <section className="ops-hub" aria-label="Engagement and operations">
     <div className="community-hero ops-hero"><div>
@@ -390,14 +421,30 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
       <div className="dash-card ops-stack"><span className="eyebrow">OPTIONAL PERSONAL ACKNOWLEDGMENT</span>
         <h3>Review the mutually accepted agreement</h3>
         <p className="muted">The underlying contract acceptance is still controlled by the existing scene approval process. This additional record is voluntary and not a legal signature.</p>
-        <div className="ops-clause"><b>01 · Fictional terms</b><p>Current starting terms and game modules were explicitly proposed and accepted. All ledger balances are fictional.</p></div>
-        <div className="ops-clause"><b>02 · Real-world consent</b><p>Either participant may pause or end the scene at any time. No withdrawal of consent can create a penalty or block a real-world action.</p></div>
-        <div className="ops-clause"><b>03 · Private records</b><p>Proofs, journals, rituals, game turns and reward events may be stored for this scene. Private proof files may be erased by their uploader.</p></div>
+        <div className="ops-clause" aria-label="Contract clause review">
+          <small>CLAUSE {clauseIndex+1} OF {clauses.length}</small>
+          <h4>{currentClause.title}</h4><p>{currentClause.body}</p>
+          <label className="check-label"><input type="checkbox"
+            aria-label={"Read "+currentClause.title}
+            checked={confirmedClauses.includes(currentClause.key)}
+            onChange={event=>setConfirmedClauses(current=>{
+              return event.target.checked?[...new Set([...current,currentClause.key])]:
+                current.filter(key=>key!==currentClause.key)
+            })}/>
+            <span>I have read this clause</span></label>
+          <div className="person-actions">
+            <button type="button" className="btn btn-quiet" disabled={clauseIndex===0}
+              onClick={()=>setClauseIndex(Math.max(0,clauseIndex-1))}>Previous clause</button>
+            <button type="button" className="btn btn-outline" disabled={clauseIndex===clauses.length-1||
+              !confirmedClauses.includes(currentClause.key)}
+              onClick={()=>setClauseIndex(Math.min(clauses.length-1,clauseIndex+1))}>Next clause</button>
+          </div>
+        </div>
         <label className="check-label"><input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)}/>
           <span>I read these terms and understand this is non-binding roleplay.</span></label>
         <label>TYPE YOUR ACKNOWLEDGMENT NAME<input minLength={3} maxLength={80} value={signerName}
           onChange={e=>setSignerName(e.target.value)} placeholder="Your chosen roleplay name"/></label>
-        <button className="btn btn-red" disabled={busy||!playing||!ack||signerName.trim().length<3}
+        <button className="btn btn-red" disabled={busy||!playing||!allRead||!ack||signerName.trim().length<3}
           onClick={()=>void act({action:"sign",typedName:signerName.trim(),acknowledged:true})}>Record my acknowledgment</button>
         {sceneId&&<a className="btn btn-outline" href={"/api/contracts/pdf?sceneId="+encodeURIComponent(sceneId)}>Download contract PDF</a>}
       </div>
@@ -422,6 +469,11 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
       </div>
       <div className="dash-card"><h3>Administration & audit</h3>
         <p className="muted">Maintenance actions are permission-gated and audited. No administrative action may change fictional agreement terms or restrict a participant's ability to withdraw consent.</p>
+        {!audit.length?<p className="muted">No recorded maintenance operations.</p>:
+          audit.map(entry=><div className="ops-item" key={entry.id}>
+            <strong>{entry.action}</strong><small>{new Date(entry.created_at).toLocaleString("en-GB")} · @{entry.actor_handle||"unknown"}</small>
+            <pre className="ops-audit-json">{JSON.stringify(entry.details)}</pre>
+          </div>)}
       </div>
     </div>}
   </section>

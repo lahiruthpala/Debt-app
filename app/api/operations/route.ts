@@ -173,7 +173,11 @@ export async function GET(req:Request){
         const {rows}=await db.query("SELECT p.handle,p.role,g.typed_name,g.acknowledged_at "+
           "FROM scene_signatures g JOIN profiles p ON p.id=g.user_id WHERE g.scene_id=$1 "+
           "ORDER BY g.acknowledged_at",[sceneId])
-        return reply({signatures:rows})
+        const agreement=await db.query(
+          "SELECT s.start_principal,s.monthly_rate,s.weekly_target,s.late_fee,"+
+          "sc.title_snapshot,sc.description_snapshot,sc.modules_snapshot "+
+          "FROM scenes s LEFT JOIN scene_contracts sc ON sc.scene_id=s.id WHERE s.id=$1",[sceneId])
+        return reply({signatures:rows,agreement:agreement.rows[0]})
       }
       if(view==="forecast"){
         const weeks=validate(z.coerce.number().int().min(1).max(52),url.searchParams.get("weeks")||"12")
