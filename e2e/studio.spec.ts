@@ -340,8 +340,8 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
       headers:{origin:apiOrigin},data:{action:"safety-save",sceneId:proposedId,
         settings:{limits:["no-real-money","no-intimate-images"],shareLimits:true,aiOptIn:true,aftercare:"Take a short break"}}
     })).status()).toBe(200)
-    expect((await domPage.request.get("/api/scene-platform?view=safety&sceneId="+proposedId)).then(r=>r.json())
-      .then(v=>v.partnerLimits)).toContain("no-real-money")
+    const safetyView=await (await domPage.request.get("/api/scene-platform?view=safety&sceneId="+proposedId)).json()
+    expect(safetyView.partnerLimits).toContain("no-real-money")
     expect((await subPage.request.post("/api/scene-ai",{
       headers:{origin:apiOrigin},data:{sceneId:proposedId,kind:"story",
         prompt:"Suggest a non-explicit mystery puzzle for two cooperative players."}
