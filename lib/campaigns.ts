@@ -45,6 +45,7 @@ export const campaignDefinition=z.object({
   if(x.maxContribution<x.minContribution)issue(["maxContribution"],"Maximum must be at least minimum")
   if(x.maxPerMember<x.minContribution)issue(["maxPerMember"],"Per-person cap is below minimum")
   if(["goal","competition"].includes(x.kind)&&x.goal===0)issue(["goal"],"This campaign type requires a goal")
+  if(x.visibility==="restricted"&&x.joinPolicy!=="invite")issue(["joinPolicy"],"Restricted campaigns require invitations")
   if(x.kind==="event"&&(!x.startAt||!x.endAt))issue(["endAt"],"Timed events need a start and an end")
   if(x.startAt&&x.endAt&&Date.parse(x.endAt)<=Date.parse(x.startAt))issue(["endAt"],"End must follow start")
   if(x.endAt&&Date.parse(x.endAt)<=Date.now())issue(["endAt"],"End time must be in the future")
