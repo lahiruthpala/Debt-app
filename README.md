@@ -21,6 +21,7 @@
 - Focused **Game room** with seven instant games/tools: Debt Dice, Payoff Lab, Challenge Board, Coin Flip, High/Low, Mystery Cards and Vault Pick
 - Four new 24-hour-cooldown quick games use server-side secure random outcomes and log fictional credits/penalties; the Sub explicitly starts each balance-changing mini-game
 - Community Game Studio: write original rules and opening prompts, save drafts, publish to Discover, edit/unpublish your games, and play collaborative turn-based sessions inside approved scenes
+- Five first-party interactive story games appear in Story games → Discover: **The Midnight Ledger**, **Escape the Velvet Vault**, **The Crimson Court**, **Neon City Courier** and **The Secret Auction**. They use three server-validated branching choices, alternating partner turns and automatically saved endings; no fictional ledger changes.
 - Game sessions preserve the original rules, support both participants' free-form turns, and can be finished by either partner. Game moves never change the fictional ledger
 - Fixed-position action toasts show immediate progress, success and errors even when scrolled to the bottom of the dashboard
 - Multiplayer Debt Dice (server-side RNG, 24-hour cooldown), cooperative challenge board, payoff simulator
@@ -86,7 +87,7 @@ is unavailable, check this endpoint first. The CI database is **not** the produc
 - Blocking ends active scenes and prevents future invitations from that account. Scene termination never requires the other party's approval.
 - All balances are **fictional**. Payment credits require non-explicit photo evidence and Dom approval; no money is sent or transferred.
 - Public game content is user-authored text, displayed as escaped text, not executable code. Game sessions are restricted to approved scene participants; a paused scene rejects new moves. Publication changes are creator-only and game reports are recorded for review.
-- Community games currently support flexible human-written rules and manually entered turns, not arbitrary executable rule engines, automatic scoring, or real-time chat delivery. Players can refresh turns to see their partner's updates.
+- Community-created games support flexible human-written rules and manually entered turns; the five curated examples use a fixed branching-choice engine instead. Neither mode executes arbitrary code, automatically scores debts, or delivers real-time chat. Players can refresh turns to see their partner's updates.
 - This prototype uses **self-declared** adult status, not independently verified age; it also does not yet provide email-based password recovery or automated account deletion. Those are important before promoting the service broadly.
 - Never record real banking details, addresses, private images or intimate information in profile bios.
 
