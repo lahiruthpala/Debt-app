@@ -118,7 +118,7 @@ export async function GET(req:Request){
           "FROM narrative_sessions ns WHERE ns.scene_id=$1 ORDER BY ns.created_at DESC LIMIT 40",[sceneId])
         return respond({sessions:rows.map(row=>{
           const definition=narrativeSchema.safeParse(row.definition_snapshot)
-          const state=row.state as {nodeId:string;flags:string[];decisions:number}
+          const state=row.state as {nodeId:string;flags:string[];items:string[];decisions:number}
           const chapter=definition.success?definition.data.nodes.find(node=>node.id===state.nodeId):null
           return {...row,chapter:chapter?{...chapter,
             choices:definition.success?permittedChoices(definition.data,state):[]}:null}

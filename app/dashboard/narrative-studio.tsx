@@ -211,7 +211,7 @@ export default function NarrativeStudio({scenes,selectedSceneId,meId,onNotify}:{
              <label>WEIGHT (1–100)<input type="number" min={1} max={100} value={outcome.weight}
                onChange={e=>changeChoice(i,j,{randomTargets:choice.randomTargets?.map((item,index)=>
                  index===k?{...item,weight:Number(e.target.value)}:item)})}/></label>
-             <button className="btn btn-quiet" type="button" disabled={choice.randomTargets.length<=2}
+             <button className="btn btn-quiet" type="button" disabled={(choice.randomTargets?.length||0)<=2}
                onClick={()=>changeChoice(i,j,{randomTargets:choice.randomTargets?.filter((_,index)=>index!==k)})}>Remove route</button>
            </div>)}
            {choice.randomTargets&&<button type="button" className="btn btn-outline" disabled={choice.randomTargets.length>=5}
