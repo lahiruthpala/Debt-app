@@ -70,7 +70,7 @@ export function openForActions(status:string,startAt:string|Date|null,endAt:stri
     && (!endAt || new Date(endAt).getTime()>now)
 }
 export function canJoinCampaign(status:string,policy:string,startAt:string|Date|null,endAt:string|Date|null,now=Date.now()):boolean {
-  return policy!=="invite"&&openForActions(status,startAt,endAt,now)
+  return policy!=="invite"&&status==="published"&&(!endAt||new Date(endAt).getTime()>now)
 }
 export function contributionAllowed(amount:number,min:number,max:number,total:number,cap:number,personalCap:number):boolean {
   return Number.isInteger(amount)&&amount>=min&&amount<=max&&amount+total<=Math.min(cap,personalCap)
