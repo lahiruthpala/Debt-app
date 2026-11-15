@@ -6,7 +6,7 @@ import {interestGroups} from "@/lib/showcase"
 type Role="dom"|"sub"
 type Feedback=(kind:"pending"|"success"|"error",message:string)=>void
 type Summary={id:string;title:string;description?:string;kind:string;category?:string;status?:string;visibility?:string;
-  creator_handle:string;creator_id?:string;goal:number;total?:number;members?:number;ends_at?:string|null;membership_status?:string;following?:boolean}
+  creator_handle:string;creator_id?:string;has_cover?:boolean;goal:number;total?:number;members?:number;ends_at?:string|null;membership_status?:string;following?:boolean}
 type Member={id:string;member_id:string;status:string;anonymous:boolean;leaderboard_opt_in:boolean;personal_cap:number;handle:string;created_at:string}
 type Activity={id:string;kind:string;config:CampaignActivity;state:string}
 type Contribution={id:string;amount:number;status:string;created_at:string;note:string;review_note:string;member_handle:string|null;evidence_count:number}
@@ -15,7 +15,7 @@ type Post={id:string;kind:string;content:string;parent_id:string|null;display_ha
 type Detail={campaign:CampaignDefinition & {id:string;creator_id:string;creator_handle:string;status:string;published_at:string|null;
   starts_at:string|null;ends_at:string|null;join_policy:string;terms_version:number;min_contribution:number;max_contribution:number;
   max_per_member:number;member_limit:number;require_contribution_proof:boolean;allow_anonymous:boolean;leaderboard_enabled:boolean;
-  allow_comments:boolean;milestones:{title:string;threshold:number}[];tags:string[]};
+  allow_comments:boolean;milestones:{title:string;threshold:number}[];tags:string[];has_cover?:boolean};
   totals:{total:number;members:number;contributors:number;progress:number};
   isCreator:boolean;membership:{status:string;anonymous:boolean;leaderboard_opt_in:boolean;personal_cap:number}|null;
   following:boolean;activities:Activity[];posts:Post[];leaderboard:{handle:string;points:number;total:number}[];
@@ -128,6 +128,8 @@ export default function CampaignHub({role,onNotify}:Props){
   const [reportText,setReportText]=useState("")
   const [reviewNotes,setReviewNotes]=useState<Record<string,string>>({})
   const [gameResult,setGameResult]=useState("")
+  const [coverFile,setCoverFile]=useState<File|null>(null)
+  const [coverConsent,setCoverConsent]=useState(false)
   const [openProofs,setOpenProofs]=useState<string[]>([])
   const refreshLists=useCallback(async()=>{
     const [a,b]=await Promise.all([get("discover",{q,kind:kindFilter,tag}),get("mine")])
@@ -185,6 +187,20 @@ export default function CampaignHub({role,onNotify}:Props){
     }catch(e){onNotify("error",e instanceof Error?e.message:"Invalid campaign configuration")}
     finally{setBusy(false)}
   }
+  async function uploadCover(e:FormEvent){
+    e.preventDefault();if(!coverFile||!coverConsent||!selected)return
+    setBusy(true)
+    try{
+      const form=new FormData()
+      form.set("campaignId",selected);form.set("file",coverFile);form.set("consent","yes")
+      const r=await fetch("/api/campaign-cover",{method:"POST",body:form})
+      const d=await r.json().catch(()=>({}))
+      if(!r.ok)throw Error(d.error||"Cover upload rejected")
+      setCoverFile(null);setCoverConsent(false)
+      await loadDetail(selected);onNotify("success",d.message)
+    }catch(e){onNotify("error",e instanceof Error?e.message:"Unable to upload cover")}
+    finally{setBusy(false)}
+  }
   function editCurrent(){
     if(!detail||detail.campaign.status!=="draft")return
     const c=detail.campaign
@@ -238,6 +254,7 @@ export default function CampaignHub({role,onNotify}:Props){
       </form>
       <div className="campaign-grid">{list.map(c=><button key={c.id} className="campaign-discovery-card" onClick={()=>void open(c.id)}>
         <span className="campaign-kind">{types.find(t=>t.id===c.kind)?.icon||"◇"} {types.find(t=>t.id===c.kind)?.title||c.kind}</span>
+        {c.has_cover&&<img className="campaign-card-cover" src={"/api/campaign-cover?id="+c.id} alt={"Campaign artwork for "+c.title}/>}
         <strong>{c.title}</strong><small>by @{c.creator_handle}</small><p>{c.description}</p>
         <div className="campaign-meter"><div style={{width:progressPercent(Number(c.total),c.goal)+"%"}}/></div>
         <div className="campaign-card-footer"><span>{credit(Number(c.total||0))}</span><span>{c.members||0} joined</span></div>
@@ -375,7 +392,8 @@ export default function CampaignHub({role,onNotify}:Props){
           <button className="btn btn-outline" onClick={()=>{void navigator.clipboard.writeText(window.location.origin+"/dashboard?campaign="+campaign.id)
             .then(()=>onNotify("success","Campaign URL copied"))
             .catch(()=>onNotify("error","Unable to copy campaign URL"))}}>Share link</button></div>
-        <h2>{campaign.title}</h2><p className="muted">by @{campaign.creator_handle} · {campaign.visibility} · {campaign.join_policy} joining</p>
+        {campaign.has_cover&&<img className="campaign-hero-cover" src={"/api/campaign-cover?id="+campaign.id} alt={"Campaign artwork for "+campaign.title}/>}
+        <h2>{campaign.title}</h2><p className="muted">by <a href={"/u/"+encodeURIComponent(campaign.creator_handle)}>@{campaign.creator_handle}</a> · {campaign.visibility} · {campaign.join_policy} joining</p>
         <p>{campaign.description}</p><div className="campaign-rule-box"><strong>Rules and consent boundaries</strong><p>{campaign.rules}</p></div>
         <div className="campaign-metrics">
           <div><small>Collective fictional total</small><strong>{credit(detail.totals.total)}</strong></div>
@@ -388,6 +406,14 @@ export default function CampaignHub({role,onNotify}:Props){
         <div className="campaign-milestones">{campaign.milestones?.map((m,i)=><span className="campaign-chip" key={i}>
           {detail.totals.total>=m.threshold?"✓ ":"○ "}{m.title} · {credit(m.threshold)}</span>)}</div>
         {detail.isCreator?<div className="campaign-actions">
+          {campaign.status==="draft"&&<form className="campaign-proof-form" onSubmit={e=>void uploadCover(e)}>
+            <label>Optional campaign cover image (JPEG/PNG/WebP, max 3 MB)
+              <input type="file" accept="image/jpeg,image/png,image/webp"
+                onChange={e=>setCoverFile(e.target.files?.[0]||null)}/></label>
+            <label className="campaign-check"><input type="checkbox" checked={coverConsent}
+              onChange={e=>setCoverConsent(e.target.checked)}/>I have permission to publish this non-explicit image.</label>
+            <button className="btn btn-outline" disabled={busy||!coverFile||!coverConsent}>Upload cover</button>
+          </form>}
           {campaign.status==="draft"&&<><button className="btn btn-outline" onClick={editCurrent}>Edit draft</button>
             <button className="btn btn-red" disabled={busy} onClick={()=>void run("publish")}>Publish campaign</button></>}
           {campaign.status==="published"&&<button className="btn btn-outline" disabled={busy} onClick={()=>void run("pause")}>Pause campaign</button>}
@@ -395,7 +421,7 @@ export default function CampaignHub({role,onNotify}:Props){
           {["published","paused"].includes(campaign.status)&&<button className="btn btn-outline" disabled={busy}
             onClick={()=>{if(window.confirm("Close this campaign permanently?"))void run("close")}}>Close permanently</button>}
         </div>:<>
-          {role==="sub"&&!member&&campaign.status==="published"&&<div className="campaign-participation">
+          {role==="sub"&&(!member||member.status==="left")&&campaign.status==="published"&&<div className="campaign-participation">
             <h3>Join voluntarily</h3><p className="muted">Read the published rules above. Joining creates no private contract or real payment obligation.</p>
             <label className="campaign-check"><input type="checkbox" checked={anonymous} disabled={!campaign.allow_anonymous}
               onChange={e=>{setAnonymous(e.target.checked);if(e.target.checked)setLeaderboard(false)}}/>Use anonymous display</label>
@@ -417,7 +443,7 @@ export default function CampaignHub({role,onNotify}:Props){
             {participating&&<button className="btn btn-outline" disabled={busy}
               onClick={()=>void run("preferences",{preferences:{anonymous,showOnLeaderboard:leaderboard,personalCap}})}>Save privacy & limits</button>}
           </div>}
-          {member?.status==="left"&&<p className="muted">You left this campaign. You can rejoin if entry is still open and not restricted.</p>}
+          {member?.status==="left"&&<p className="muted">You previously left this campaign; rejoining requires fresh consent.</p>}
           {role==="sub"&&!detail.following&&<button className="btn btn-outline" disabled={busy}
             onClick={()=>void run("follow",{follow:true})}>Follow updates</button>}
           {role==="sub"&&detail.following&&<button className="btn btn-outline" disabled={busy}
