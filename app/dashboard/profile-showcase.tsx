@@ -17,14 +17,18 @@ const defaults:ShowcaseSettings={
   showcaseEnabled:false,showStats:false,showAchievements:false,showActivity:false
 }
 const badgeSymbols:Record<string,string>={"first-agreement":"✦","consistent-partner":"◆","first-game":"⚄",
-  "active-player":"✺","verified-task":"✓","verified-evidence":"◈","trusted-reviewer":"♢","creator":"✎"}
+  "active-player":"✺","verified-task":"✓","verified-evidence":"◈","trusted-reviewer":"♢","creator":"✎","campaign-creator":"♕","community-member":"◇","fictional-contributor":"◎","campaign-task":"✦"}
 const stats: {key:keyof ShowcaseStats;label:string;symbol:string}[]=[
   {key:"acceptedAgreements",label:"Agreements",symbol:"◇"},
   {key:"gameActions",label:"Game actions",symbol:"⚄"},
   {key:"tasksApproved",label:"Verified tasks",symbol:"✓"},
   {key:"proofsApproved",label:"Approved proofs",symbol:"◈"},
   {key:"proofsReviewed",label:"Proof reviews",symbol:"♢"},
-  {key:"publishedTemplates",label:"Creations",symbol:"✦"}
+  {key:"publishedTemplates",label:"Creations",symbol:"✦"},
+  {key:"campaignsCreated",label:"Campaigns published",symbol:"♕"},
+  {key:"campaignsJoined",label:"Campaigns joined",symbol:"◇"},
+  {key:"campaignContributions",label:"Campaign contributions",symbol:"◎"},
+  {key:"campaignTasksApproved",label:"Campaign tasks",symbol:"✦"}
 ]
 async function fetchShowcase(query:string):Promise<ShowcaseResponse>{
   const response=await fetch("/api/showcase?"+query,{cache:"no-store"})
