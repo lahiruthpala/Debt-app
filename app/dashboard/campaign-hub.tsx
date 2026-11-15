@@ -1,6 +1,6 @@
 "use client"
 import {useCallback,useEffect,useState,type FormEvent} from "react"
-import {campaignKinds,campaignActivitySchema,type CampaignActivity,type CampaignDefinition,progressPercent} from "@/lib/campaigns"
+import {type CampaignActivity,type CampaignDefinition,progressPercent,openForActions} from "@/lib/campaigns"
 import {interestGroups} from "@/lib/showcase"
 
 type Role="dom"|"sub"
@@ -226,6 +226,7 @@ export default function CampaignHub({role,onNotify}:Props){
   function toggleProof(key:string){setOpenProofs(v=>v.includes(key)?v.filter(x=>x!==key):[...v,key])}
   const campaign=detail?.campaign,member=detail?.membership
   const participating=member?.status==="active"
+  const actionsOpen=Boolean(campaign&&openForActions(campaign.status,campaign.starts_at,campaign.ends_at))
   return <div className="campaign-hub">
     <div className="campaign-toolbar">
       <div><span className="eyebrow">COMMUNITY · CONSENT FIRST</span>
@@ -405,6 +406,7 @@ export default function CampaignHub({role,onNotify}:Props){
           <small className="muted">{detail.totals.progress}% of {credit(Number(campaign.goal))}</small></>}
         <div className="campaign-milestones">{campaign.milestones?.map((m,i)=><span className="campaign-chip" key={i}>
           {detail.totals.total>=m.threshold?"✓ ":"○ "}{m.title} · {credit(m.threshold)}</span>)}</div>
+        {campaign.status==="published"&&!actionsOpen&&<p className="muted">{campaign.starts_at&&new Date(campaign.starts_at)>new Date()?"Activities begin "+shortDate(campaign.starts_at):"The campaign period has ended. New actions are closed."}</p>}
         {detail.isCreator?<div className="campaign-actions">
           {campaign.status==="draft"&&<form className="campaign-proof-form" onSubmit={e=>void uploadCover(e)}>
             <label>Optional campaign cover image (JPEG/PNG/WebP, max 3 MB)
@@ -444,7 +446,7 @@ export default function CampaignHub({role,onNotify}:Props){
               onClick={()=>void run("preferences",{preferences:{anonymous,showOnLeaderboard:leaderboard,personalCap}})}>Save privacy & limits</button>}
           </div>}
           {member?.status==="left"&&<p className="muted">You previously left this campaign; rejoining requires fresh consent.</p>}
-          {campaign.visibility==="public"&&!detail.creatorFollowing&&<button className="btn btn-outline" disabled={busy}
+          {campaign.visibility==="public"&&!detail.isCreator&&!detail.creatorFollowing&&<button className="btn btn-outline" disabled={busy}
             onClick={()=>void run("follow_creator",{follow:true})}>Follow creator @{campaign.creator_handle}</button>}
           {campaign.visibility==="public"&&detail.creatorFollowing&&<button className="btn btn-outline" disabled={busy}
             onClick={()=>void run("follow_creator",{follow:false})}>Unfollow creator</button>}
@@ -455,7 +457,7 @@ export default function CampaignHub({role,onNotify}:Props){
         </>}
       </div>
 
-      {participating&&campaign.status==="published"&&<div className="dash-card">
+      {participating&&actionsOpen&&<div className="dash-card">
         <h3>Make a voluntary fictional contribution</h3>
         <p className="muted">No real money is transferred. {campaign.require_contribution_proof?
           "A private proof upload and creator review are required before the total changes.":"Credits are added immediately to this campaign's separate fictional total."}</p>
@@ -494,17 +496,17 @@ export default function CampaignHub({role,onNotify}:Props){
         {detail.activities.length===0?<p className="muted">No tasks, games or polls were added.</p>:detail.activities.map(a=><div className="campaign-activity" key={a.id}>
           <span className="campaign-kind">{a.kind.toUpperCase()}</span><strong>{a.config.title}</strong>
           {a.config.type==="task"&&<><p className="muted">Earn {a.config.points} campaign points per approved completion. Max {a.config.maxCompletionsPerMember} completion(s).</p>
-            {participating&&campaign.status==="published"&&<div className="campaign-field-grid"><label>Completion report
+            {participating&&actionsOpen&&<div className="campaign-field-grid"><label>Completion report
               <textarea maxLength={1000} value={taskNotes[a.id]||""} rows={2}
                 onChange={e=>setTaskNotes(s=>({...s,[a.id]:e.target.value}))}/></label>
               <button className="btn btn-outline" disabled={busy||!(taskNotes[a.id]||"").trim()}
                 onClick={()=>void run("submit_task",{activityId:a.id,note:taskNotes[a.id]}).then(r=>{if(r)setTaskNotes(s=>({...s,[a.id]:""}))})}>Submit task</button></div>}</>}
           {a.config.type==="game"&&<><p className="muted">{a.config.game} · {a.config.pointsWin} win points · {a.config.cooldownHours}h cooldown</p>
-            {participating&&campaign.status==="published"&&<button className="btn btn-outline" disabled={busy}
+            {participating&&actionsOpen&&<button className="btn btn-outline" disabled={busy}
               onClick={()=>void run("play_game",{activityId:a.id}).then(r=>{if(r?.outcome)
                 setGameResult(a.config.title+": "+(r.outcome.label||String(r.outcome.roll))+" · "+r.points+" points")})}>Play now</button>}</>}
           {a.config.type==="poll"&&<><p>Community poll</p><div className="campaign-poll-options">{a.config.choices.map((choice,i)=>
-            <button className="btn btn-outline" key={i} disabled={busy||!participating||campaign.status!=="published"}
+            <button className="btn btn-outline" key={i} disabled={busy||!participating||!actionsOpen}
               onClick={()=>void run("vote",{activityId:a.id,choice:i})}>{choice} · {detail.votes.find(v=>v.activity_id===a.id&&v.choice_index===i)?.votes||0}</button>)}</div></>}
         </div>)}
         {gameResult&&<p className="campaign-game-result" role="status">{gameResult}</p>}
@@ -547,7 +549,7 @@ export default function CampaignHub({role,onNotify}:Props){
 
       <div className="campaign-lower-grid">
         <div className="dash-card"><h3>Campaign feed</h3>
-          {((participating&&campaign.status==="published")||(detail.isCreator&&campaign.status==="published"))&&
+          {((participating&&actionsOpen)||(detail.isCreator&&actionsOpen))&&
             <div className="campaign-post-editor">
               <textarea rows={3} maxLength={2000} placeholder={replyTo?"Write a reply...":detail.isCreator?"Publish a campaign update...":"Comment on the campaign..."}
                 value={feedText} onChange={e=>setFeedText(e.target.value)}/>
