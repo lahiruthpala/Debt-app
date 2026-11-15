@@ -191,6 +191,49 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     expect(unpublish.status()).toBe(200)
     const hidden = await subPage.request.get("/api/games?view=library&q=" + creativeTitle)
     expect((await hidden.json()).games).toHaveLength(0)
+
+    // Built-in branching adventures appear in Discover without a creator account.
+    await subPage.getByRole("button",{name:/Discover games/}).click()
+    await subPage.getByLabel("Search community games").fill("The Midnight Ledger")
+    await subPage.getByRole("button",{name:"Explore library"}).click()
+    await subPage.getByRole("button",{name:"View game The Midnight Ledger"}).click()
+    await expect(subPage.getByText("OFFICIAL INTERACTIVE STORY",{exact:false})).toBeVisible()
+    const storyBefore=(await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    await subPage.getByRole("button",{name:/Start with your partner/}).click()
+    await expect(subPage.getByRole("status")).toContainText("Game started")
+    const officialSessions=(await (await subPage.request.get("/api/games?view=sessions&sceneId="+sceneId)).json()).sessions
+    const officialId=officialSessions.find((s:{title_snapshot:string})=>s.title_snapshot==="The Midnight Ledger").id
+    await expect(subPage.getByText(/At midnight, the library clock/).first()).toBeVisible()
+    await subPage.getByRole("button",{name:/Follow the torn receipt/}).click()
+    await expect(subPage.getByRole("status")).toContainText("Choice saved")
+
+    const repeated = await subPage.request.post("/api/games",{
+      headers:{origin:apiOrigin},data:{action:"choice",sessionId:officialId,choiceId:"beat-0"}
+    })
+    expect(repeated.status()).toBe(409)
+    const forged = await subPage.request.post("/api/games",{
+      headers:{origin:apiOrigin},data:{action:"turn",sessionId:officialId,content:"Skip the whole adventure"}
+    })
+    expect(forged.status()).toBe(400)
+
+    await domPage.getByRole("button",{name:/Shared sessions/}).click()
+    await domPage.getByRole("button",{name:/Refresh game list/}).click()
+    await domPage.locator(".session-list-item").filter({hasText:"The Midnight Ledger"}).click()
+    await expect(domPage.getByText(/The receipt leads beneath/)).toBeVisible()
+    await domPage.getByRole("button",{name:/Compare the secret records/}).click()
+    await expect(domPage.getByRole("status")).toContainText("Choice saved")
+    await subPage.getByRole("button",{name:/Refresh turns/}).click()
+    await subPage.getByRole("button",{name:/Reveal the evidence to the court/}).click()
+    await expect(subPage.getByText(/By dawn, the court sees/)).toBeVisible()
+    await expect(subPage.getByText(/The end · Your shared adventure is saved/)).toBeVisible()
+    const officialDone=(await (await subPage.request.get("/api/games?view=session&id="+officialId)).json())
+    expect(officialDone.session.state).toBe("finished")
+    expect(officialDone.turns).toHaveLength(3)
+    expect(officialDone.story.complete).toBe(true)
+    const storyAfter=(await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    expect([storyAfter.principal,storyAfter.interest,storyAfter.penalties])
+      .toEqual([storyBefore.principal,storyBefore.interest,storyBefore.penalties])
+
     await visit(subPage, "Overview")
 
     // Payments require image evidence and Dom approval, even for direct API calls.
