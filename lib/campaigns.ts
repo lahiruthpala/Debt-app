@@ -1,5 +1,5 @@
 import {z} from "zod"
-import {isPresetInterest} from "./showcase"
+import {isPresetInterest} from "./showcase.ts"
 
 export const campaignKinds=["tribute","goal","challenge","competition","event"] as const
 export const campaignVisibilities=["public","unlisted","restricted"] as const
