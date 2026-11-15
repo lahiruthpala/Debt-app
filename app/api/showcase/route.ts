@@ -34,7 +34,11 @@ async function statsFor(id:string):Promise<ShowcaseStats>{
     "(SELECT count(*)::int FROM contract_task_claims q WHERE q.requested_by=$1 AND q.state='approved') AS \"tasksApproved\",",
     "(SELECT count(*)::int FROM proof_submissions p WHERE p.submitter_id=$1 AND p.status='approved') AS \"proofsApproved\",",
     "(SELECT count(*)::int FROM proof_submissions p WHERE p.reviewer_id=$1 AND p.status='approved') AS \"proofsReviewed\",",
-    "(SELECT count(*)::int FROM debt_contract_templates t WHERE t.author_id=$1 AND t.published=true) AS \"publishedTemplates\""
+    "(SELECT count(*)::int FROM debt_contract_templates t WHERE t.author_id=$1 AND t.published=true) AS \"publishedTemplates\",",
+    "(SELECT count(*)::int FROM campaigns c WHERE c.creator_id=$1 AND c.published_at IS NOT NULL) AS \"campaignsCreated\",",
+    "(SELECT count(*)::int FROM campaign_memberships m WHERE m.member_id=$1 AND m.joined_at IS NOT NULL) AS \"campaignsJoined\",",
+    "(SELECT count(*)::int FROM campaign_contributions c WHERE c.member_id=$1 AND c.status='approved') AS \"campaignContributions\",",
+    "(SELECT count(*)::int FROM campaign_task_claims c WHERE c.member_id=$1 AND c.status='approved') AS \"campaignTasksApproved\""
   ].join(" ")
   const {rows}=await getPool().query<ShowcaseStats>(sql,[id])
   return rows[0]
