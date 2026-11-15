@@ -52,7 +52,7 @@ async function campaign(db:PoolClient,id:string,actor:User,lock=false):Promise<C
   if(c.creator_id===actor.id)return c
   if(c.status==="draft")throw new CampaignError(404,"Campaign not found")
   const member=await db.query<{status:string}>("SELECT status FROM campaign_memberships WHERE campaign_id=$1 AND member_id=$2",[id,actor.id])
-  if(c.visibility==="restricted"&&!member.rows.length)throw new CampaignError(404,"Campaign not available")
+  if(c.visibility==="restricted"&&!["invited","pending","active"].includes(member.rows[0]?.status||""))throw new CampaignError(404,"Campaign not available")
   const blocked=await db.query("SELECT 1 FROM connections WHERE state='blocked' AND "+
     "((sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1)) LIMIT 1",[c.creator_id,actor.id])
   if(blocked.rowCount)throw new CampaignError(404,"Campaign not available")
@@ -268,7 +268,8 @@ export async function POST(req:Request){
         result={message:"Draft saved"}
       }else if(action==="join"||action==="accept_invite"){
         if(u.role!=="sub")throw new CampaignError(403,"Only Sub profiles can join")
-        ensureOpen(c)
+        if(c.status!=="published"||(c.ends_at&&new Date(c.ends_at).getTime()<=Date.now()))
+          throw new CampaignError(409,"Campaign is not accepting participants")
         const m=await membership(db,id,u.id,true)
         if(m?.status==="removed")throw new CampaignError(403,"Participation was revoked by the creator")
         if(action==="accept_invite"&&m?.status!=="invited")throw new CampaignError(409,"No invitation exists")
