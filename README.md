@@ -4,6 +4,75 @@
 
 ## Features
 
+## Community Campaigns (one Dom → many Subs)
+
+**Campaigns** is an additive workspace alongside private Contracts, Story games and the
+Game room. It uses an independent campaign ledger, never the one-to-one scene
+balance. Every unit labelled LKR is **fictional**. No payment service, card
+charge, bank connection, debt obligation, or real transfer exists.
+
+Five authorable types are supported:
+
+- **Open tribute:** voluntary fictional contributions without a required goal.
+- **Goal:** collective fictional target and milestone notifications.
+- **Challenge:** creator-reviewed tasks, private evidence, games and points.
+- **Competition:** opt-in non-anonymous leaderboard based on verified points/contributions.
+- **Timed event:** scheduled start/end; enrollment can happen ahead of the start.
+
+### Creator workflow
+
+1. Complete an adult Dom profile and open **Campaigns → Create**.
+2. Choose type, public/unlisted/restricted visibility, open/approval/invite
+   participation, dates, category and preset interest labels.
+3. Configure explicit boundaries, fictional limits (per action, per person, member
+   capacity), optional proof review, anonymity, leaderboards and comments.
+4. Add milestone thresholds and tasks, chance games or polls.
+5. Save a draft; optionally upload a private-Blob-backed, re-encoded WebP cover
+   from the draft detail; then publish.
+6. Approve join requests or invite discoverable Subs by handle; review
+   contributions and tasks and moderate comments.
+7. Publish announcements (followers/members receive in-app notifications),
+   pause/resume or close. Published terms cannot be silently edited.
+
+### Participant workflow
+
+1. Discover public campaigns using text/type/preset-interest filters, or
+   follow a direct link to an unlisted campaign; view the creator profile and terms.
+2. Request access, accept an invitation, or join directly based on campaign rules.
+   Choose optional anonymous display, leaderboard participation, and a personal
+   fictional cap **before** consenting. No private connection is required.
+3. Contribute voluntary fictional units within caps. If evidence is required,
+   the submission remains pending until private proof upload and creator review.
+4. Submit tasks with private proof, play secure-random coin/dice/wheel games
+   with cooldowns, and vote once in polls. Campaign points never alter scene debt.
+5. Follow updates, comment, react, report abuse, or leave at any time.
+   No fees or penalties apply for declining or leaving.
+
+### Privacy and limits
+
+- Adult authentication and role checks are server-side; invitations require
+  a discoverable, adult Sub profile. Existing account blocks are respected.
+- Restricted campaigns are accessible only to their creator and invited,
+  pending or active members. Unlisted campaigns need a direct link.
+- Personal contributions, task reports, proof files and review notes are
+  visible only to their creator and submitter. Leaderboards require explicit
+  opt-in and exclude anonymous participants.
+- Evidence uses the existing **Private** Vercel Blob integration. Images are
+  re-encoded to WebP with metadata removed; PDFs are download-only.
+  Files are uploader-erasable, with minimal audit metadata retained.
+  Campaign covers are served through an authenticated no-cache proxy.
+- Server-side rate limits, per-person contribution caps, transaction locks and
+  contribution request-ID idempotency prevent duplicate or unbounded credits.
+  Task approval awards separate, non-monetary points once.
+- Notifications are in-app rather than offline push.
+- Existing one-to-one scene permissions, contract ledger, private proofs,
+  consent states and partner chat are unchanged.
+
+Run the project's existing npm test, npm run typecheck, npm run build and
+npm run test:e2e checks. Added unit coverage in tests/campaigns.test.ts and
+live browser journeys in e2e/campaigns.spec.ts.
+
+
 - Dom / sub email-and-password accounts with private email addresses and public handles
 - 18+ self-attestation, optional opt-in discovery, role-filtered profile search
 - Private invitations, recipient approval/decline, block and disconnect
