@@ -6,6 +6,7 @@ import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
 import OperationsHub from "./operations-hub"
+import PartnerSpace from "./partner-space"
 import NotificationCenter from "./notification-center"
 import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
@@ -20,7 +21,7 @@ type Scene = { id:string; connection_id:string; status:string; connection_state:
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
 type Details = { scene:Scene; events:Event[]; challenges:Challenge[] }
-type Tab = "overview"|"discover"|"connections"|"contracts"|"stories"|"games"|"operations"|"profile"
+type Tab = "overview"|"discover"|"connections"|"contracts"|"stories"|"games"|"operations"|"partner"|"profile"
 
 const money=(n:number)=>"LKR "+Number(n || 0).toLocaleString("en-US")
 const date=(d:string)=>new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
@@ -181,6 +182,21 @@ export default function Dashboard() {
   function propose(e:FormEvent,connectionId:string) {
     e.preventDefault();void act({action:"propose",connectionId,...terms})
   }
+  async function stopNow(){
+    if(!selected||busy)return
+    setBusy(true);notify("pending","Pausing the scene and stopping active timers…")
+    try{
+      const response=await fetch("/api/scene-platform",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"stop",sceneId:selected})
+      })
+      const result=await response.json().catch(()=>({}))
+      if(!response.ok)throw Error(result.error||"Could not stop the scene")
+      await refresh()
+      notify("success",result.message||"Scene paused without penalty.")
+    }catch(e){notify("error",e instanceof Error?e.message:"Stop action unavailable. Use Scene controls to pause or end.")}
+    finally{setBusy(false)}
+  }
   function sceneAction(operation:string,amount?:number) {
     if(!selected) return
     if(operation==="end" && !window.confirm("End this fictional scene? It cannot be resumed.")) return
@@ -214,8 +230,8 @@ export default function Dashboard() {
       <div className="rail-caption">WORKSPACE</div>
       {([
         ["overview","▦","Overview"],["discover","⌕","Discover"],["connections","◇","Connections"],
-        ["contracts","◈","Contracts"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["profile","◎","My profile"],
-      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations")void refresh()}}>
+        ["contracts","◈","Contracts"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["partner","☏","Partner space"],["profile","◎","My profile"],
+      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations"||id==="partner")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
       <div className="rail-bottom"><div className="rail-legal">18+ CONSENSUAL ROLEPLAY<br/>ALL BALANCES ARE FICTIONAL</div>
@@ -225,8 +241,11 @@ export default function Dashboard() {
     <section className="app-main">
       <div className="app-topline">
         <div><span className="eyebrow">THE PRIVATE STUDIO / {tab.toUpperCase()}</span>
-          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":"Your identity"}</h1></div>
-        <div className="ops-top-controls">{profile&&<NotificationCenter onNotify={notify}/>}<div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div></div>
+          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":tab==="partner"?"Your shared space":"Your identity"}</h1></div>
+        <div className="ops-top-controls">
+          {profile&&active&&<button type="button" className="btn btn-danger-soft scene-global-stop"
+            disabled={busy} onClick={()=>void stopNow()}>Stop scene</button>}
+          {profile&&<NotificationCenter onNotify={notify}/>}<div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div></div>
       </div>
       {updateAvailable&&<div className="app-update-banner">
         <div><strong>App update available</strong><p>Refresh to get the latest contract and lock review interface.</p></div>
@@ -407,6 +426,9 @@ export default function Dashboard() {
         {tab==="stories" && <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>}
         {tab==="operations" && <OperationsHub scenes={scenes} selectedSceneId={selected} role={profile.role}
           meId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
+        {tab==="partner" && <PartnerSpace scenes={scenes} selectedSceneId={selected} role={profile.role}
+          meId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
+
         {tab==="games" && <>
           <div className="quick-room-intro"><div><span className="eyebrow">INSTANT PLAY · FICTIONAL CREDITS</span><h2>Pick a game. Play a round.</h2><p>Quick mini-games for an active connection, with clear outcomes and limited plays. For custom contracts or open-ended stories, use their separate workspaces.</p></div><div className="quick-room-links"><button type="button" className="btn btn-outline" onClick={()=>setTab("contracts")}>Contract studio ↗</button><button type="button" className="btn btn-outline" onClick={()=>setTab("stories")}>Story games ↗</button></div></div>
           {!scene?<div className="empty-block"><h2>Start a scene to unlock the game room.</h2><p>Connect with a partner and activate a consensual fictional ledger first.</p><button className="btn btn-red" onClick={()=>setTab("discover")}>Find a partner ↗</button></div>:<>
