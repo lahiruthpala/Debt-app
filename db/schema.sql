@@ -1164,3 +1164,6 @@ CREATE TABLE IF NOT EXISTS campaign_reports (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY(campaign_id,reporter_id)
 );
+
+-- Optional image is delivered through an authenticated private Blob proxy.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS cover_blob_path text;
