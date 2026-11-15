@@ -910,3 +910,13 @@ DROP TRIGGER IF EXISTS scene_platform_task_alert ON scene_assignments;
 CREATE TRIGGER scene_platform_task_alert AFTER INSERT OR UPDATE ON scene_assignments FOR EACH ROW EXECUTE FUNCTION scene_platform_alert();
 DROP TRIGGER IF EXISTS scene_platform_story_alert ON narrative_sessions;
 CREATE TRIGGER scene_platform_story_alert AFTER INSERT OR UPDATE ON narrative_sessions FOR EACH ROW EXECUTE FUNCTION scene_platform_alert();
+
+
+-- Optional AI assistance is read-only; store request counts, never prompts/responses.
+CREATE TABLE IF NOT EXISTS scene_ai_usage (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  user_id text NOT NULL REFERENCES profiles(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS scene_ai_usage_cap_idx ON scene_ai_usage(user_id,created_at DESC);
