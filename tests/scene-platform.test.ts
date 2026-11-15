@@ -56,6 +56,27 @@ test("branch progress and flags are deterministic with no ledger side effects",(
   assert.deepEqual(permittedChoices(definition,safe.state).map(x=>x.id),["continue"])
   assert.throws(()=>narrativeStep(definition,safe.state,"trust"))
 })
+test("inventory gates choices and random outcomes use bounded deterministic rolls",()=>{
+  const definition=narrativeSchema.parse(story)
+  definition.nodes[0].choices[0].grantItem="copper-key"
+  definition.nodes[0].choices[0].randomTargets=[{next:"middle",weight:4},{next:"end",weight:6}]
+  definition.nodes[1].choices[0].requiresItem="copper-key"
+  definition.nodes[1].choices[0].consumeItem="copper-key"
+  const start=structuredClone(initialNarrativeState)
+  const first=narrativeStep(definition,start,"north",0)
+  assert.equal(first.targetId,"middle")
+  assert.deepEqual(first.state.items,["copper-key"])
+  const last=narrativeStep(definition,first.state,"trust")
+  assert.equal(last.finished,true)
+  assert.deepEqual(last.state.items,[])
+  const alternate=narrativeStep(definition,start,"north",9)
+  assert.equal(alternate.targetId,"end")
+  assert.equal(alternate.finished,true)
+  assert.throws(()=>narrativeStep(definition,start,"north",10),/Invalid encounter roll/)
+  const locked=narrativeStep(definition,start,"south")
+  assert.deepEqual(permittedChoices(definition,locked.state).map(c=>c.id),["continue"])
+})
+
 test("point effects are bounded and no financial mutation capability exists",()=>{
   assert.equal(capEventPoints(10,55),5)
   assert.equal(capEventPoints(5,60),0)
