@@ -28,6 +28,7 @@ test("private invitation-only campaigns cannot accidentally permit open joining"
  assert.equal(campaignDefinition.safeParse({...base,visibility:"restricted",joinPolicy:"invite"}).success,true)
  assert.equal(canJoinCampaign("published","invite",null,null),false)
  assert.equal(canJoinCampaign("published","open",null,null),true)
+ assert.equal(canJoinCampaign("published","open",new Date(Date.now()+3600000).toISOString(),null),true)
  assert.equal(canJoinCampaign("paused","open",null,null),false)
 })
 test("timed events enforce start/end and open windows",()=>{
