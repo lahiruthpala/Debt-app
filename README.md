@@ -26,6 +26,13 @@
 - Fixed-position action toasts show immediate progress, success and errors even when scrolled to the bottom of the dashboard
 - Multiplayer Debt Dice (server-side RNG, 24-hour cooldown), cooperative challenge board, payoff simulator
 - Standalone solo simulator at `/sandbox`, retained from v1 with generic example characters
+- **Activity hub** unifies private notifications, cross-scene activity analytics, recurring rituals, a review queue, independent points and agreed non-monetary rewards, a read-only ledger forecast, optional acknowledgement, and allowlisted maintenance.
+- **Notifications** are created from committed events for invitations, scene proposals, contract claims, proof reviews, story turns and endings, ritual actions and reward requests. The unread bell polls when the app is open. Browser alerts are explicitly opt-in and in-tab only (not offline push notifications), with sensitive details hidden from the alert.
+- **Rituals** are proposed by the Dom, activated only after the Sub opts in, and evaluated in an explicit IANA timezone. A scheduled occurrence appears when a participant opens its scene on that local date. The Sub may pause; only the Sub can re-activate. Missed rituals never charge balances. Optional private non-explicit photo evidence goes through the existing proof storage and review policy.
+- **Review queue** aggregates pending proofs, contract task claims, and scheduled ritual submissions for one authorized scene. Bulk actions reuse individual server authorization and balance-safety checks and return partial failures; attached proof must be reviewed through the proof endpoint.
+- **Points & rewards** use their own event ledger. Verified actions and eligible completed stories award bounded points; Dom-defined voluntary rewards can be redeemed by the Sub, then fulfilled or declined/refunded. Points cannot be converted into money or fictional debt credits.
+- **Forecast** is a read-only 1–52 week scenario. Extra weekly credits, hypothetical fees and monthly interest are explicit what-if inputs; forecasts **never** schedule or apply charges. **Agreement acknowledgment** records an optional typed personal name only after reading clauses; it is appended to the accepted PDF but cannot replace scene consent.
+- **Maintenance** can be enabled for configured account emails only: a dry-run checks up to 1,000 private proof blobs, and explicit cleanup can remove at most 25 unreferenced objects older than 48 hours, with an audit record.
 
 This is roleplay software, not a financial service. It does **not** create an enforceable debt or legal agreement.
 
@@ -47,6 +54,8 @@ Visit http://localhost:3000. The first account may choose either role. A Dom and
 ## Vercel production setup
 
 The GitHub repository `lahiruthpala/Debt-app` is connected to `https://debt-app-ivory.vercel.app`.
+
+For administrative proof cleanup, optionally set `DEBT_ADMIN_EMAILS` to a comma-separated list of exact authenticated account email addresses (empty disables maintenance). Use Vercel's Blob integration to provide `BLOB_READ_WRITE_TOKEN` for the existing private proof storage. Never commit those secrets. No extra environment value is needed for ordinary activity hub features.
 
 1. In **Vercel → project debt-app → Storage / Marketplace**, provision and link a **Neon Postgres** database to Production (and Preview if desired). Ensure the project receives a **pooled** `DATABASE_URL`. A Vercel deployment alone does not provide a persistent database.
 2. In project **Environment Variables**, add `BETTER_AUTH_SECRET` as a long randomly generated secret. Set `BETTER_AUTH_URL=https://debt-app-ivory.vercel.app` in **Production** only; leave it unset for Preview.

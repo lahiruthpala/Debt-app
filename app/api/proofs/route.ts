@@ -11,7 +11,7 @@ import {canReviewProof,isAllowedImageType,isAllowedProofType,isValidPaymentPdf,m
 export const runtime="nodejs"
 export const dynamic="force-dynamic"
 const uuid=z.string().uuid()
-const proofKind=z.enum(["lock","task","challenge","payment"])
+const proofKind=z.enum(["lock","task","challenge","payment","ritual"])
 const noteSchema=z.string().trim().max(500)
 class ProofError extends Error{constructor(public status:number,message:string){super(message)}}
 const json=(result:unknown,status=200)=>Response.json(result,{status,headers:{"Cache-Control":"private, no-store"}})
@@ -55,7 +55,7 @@ function active(scene:Scene){
   if(scene.status!=="active"||scene.connection_state!=="active")
     throw new ProofError(409,"An active, approved connection and scene are required")
 }
-async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:ProofKind,moduleId:string|null,claimId:string|null,challengeId:string|null,amount:number|null){
+async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:ProofKind,moduleId:string|null,claimId:string|null,challengeId:string|null,amount:number|null,ritualOccurrenceId:string|null){
   active(scene)
   if(kind==="payment"){
     if(amount===null||!Number.isInteger(amount)||amount<1||amount>100000||moduleId||claimId||challengeId)
@@ -71,6 +71,14 @@ async function validateTarget(db:PoolClient,scene:Scene,actorId:string,kind:Proo
       "SELECT id FROM proof_submissions WHERE claim_id=$1 AND status='pending' AND deleted_at IS NULL LIMIT 1",
       [claimId])
     if(pending.rowCount)throw new ProofError(409,"A proof is already pending review for this task")
+  }else if(kind==="ritual"){
+    if(!ritualOccurrenceId||moduleId||claimId||challengeId||amount!==null)throw new ProofError(400,"Select a ritual occurrence")
+    const {rows}=await db.query("SELECT o.id,o.status,r.requires_proof,r.status AS ritual_status FROM scene_ritual_occurrences o "+
+      "JOIN scene_rituals r ON r.id=o.ritual_id WHERE o.id=$1 AND o.scene_id=$2",[ritualOccurrenceId,scene.id])
+    if(!rows.length||rows[0].status!=="pending"||!rows[0].requires_proof||rows[0].ritual_status!=="active")
+      throw new ProofError(409,"This ritual is not waiting for optional private evidence")
+    const pending=await db.query("SELECT id FROM proof_submissions WHERE ritual_occurrence_id=$1 AND status='pending' AND deleted_at IS NULL",[ritualOccurrenceId])
+    if(pending.rowCount)throw new ProofError(409,"Evidence is already attached to this ritual")
   }else if(kind==="challenge"){
     if(!challengeId||moduleId||claimId||amount!==null)throw new ProofError(400,"Select a challenge")
     const {rows}=await db.query("SELECT id,state FROM challenges WHERE id=$1 AND scene_id=$2",[challengeId,scene.id])
@@ -102,11 +110,11 @@ function failed(error:unknown){
 }
 type ProofRow={
  id:string;scene_id:string;submitter_id:string;kind:ProofKind;module_id:string|null;
- claim_id:string|null;challenge_id:string|null;amount:number|null;blob_path:string|null;content_type:string;lock_request_id:string|null;status:ProofStatus;deleted_at:string|null
+ claim_id:string|null;challenge_id:string|null;ritual_occurrence_id:string|null;amount:number|null;blob_path:string|null;content_type:string;lock_request_id:string|null;status:ProofStatus;deleted_at:string|null
 }
 async function findProof(db:PoolClient,id:string,userId:string,lock=false):Promise<ProofRow>{
   const {rows}=await db.query(
-    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.blob_path,p.content_type,p.lock_request_id,p.status,p.deleted_at "+
+    "SELECT p.id,p.scene_id,p.submitter_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.ritual_occurrence_id,p.amount,p.blob_path,p.content_type,p.lock_request_id,p.status,p.deleted_at "+
     "FROM proof_submissions p JOIN scenes s ON s.id=p.scene_id "+
     "JOIN connections c ON c.id=s.connection_id "+
     "WHERE p.id=$1 AND (c.sender_id=$2 OR c.recipient_id=$2) "+(lock?"FOR UPDATE OF p":""),
@@ -157,7 +165,7 @@ export async function GET(req:Request){
       if(scene.connection_state!=="active"&&actor.role!=="sub")
         throw new ProofError(403,"This connection is no longer active")
       const {rows}=await db.query(
-        "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.amount,p.note,p.content_type,p.status,"+
+        "SELECT p.id,p.scene_id,p.kind,p.module_id,p.claim_id,p.challenge_id,p.ritual_occurrence_id,p.amount,p.note,p.content_type,p.status,"+
         "p.created_at,p.reviewed_at,p.review_note,p.deleted_at,p.lock_request_id,u.handle AS submitter_handle,"+
         "r.handle AS reviewer_handle,p.submitter_id "+
         "FROM proof_submissions p JOIN profiles u ON u.id=p.submitter_id "+
@@ -185,6 +193,7 @@ export async function POST(req:Request){
     const claimId=kind==="task"?parsed(uuid,form.get("claimId")):null
     const challengeId=kind==="challenge"?parsed(uuid,form.get("challengeId")):null
     const amount=kind==="payment"?parsed(z.coerce.number().int().min(1).max(100000),form.get("amount")):null
+    const ritualOccurrenceId=kind==="ritual"?parsed(uuid,form.get("ritualOccurrenceId")):null
     const note=parsed(noteSchema,form.get("note")||"")
     if(form.get("consent")!=="yes")throw new ProofError(400,"Confirm that your evidence is shared voluntarily and contains no sensitive personal details")
     const file=form.get("file")
@@ -200,7 +209,7 @@ export async function POST(req:Request){
     const pre=await getPool().connect()
     try{
       const scene=await sceneFor(pre,sceneId,actor.id)
-      await validateTarget(pre,scene,actor.id,kind,moduleId,claimId,challengeId,amount)
+      await validateTarget(pre,scene,actor.id,kind,moduleId,claimId,challengeId,amount,ritualOccurrenceId)
       const daily=await pre.query<{count:number}>(
         "SELECT count(*)::int AS count FROM proof_submissions WHERE submitter_id=$1 AND created_at>now()-interval '24 hours'",[actor.id])
       if(daily.rows[0].count>=12)throw new ProofError(429,"You can upload at most 12 proofs per day")
@@ -236,7 +245,7 @@ export async function POST(req:Request){
     db=await getPool().connect()
     await db.query("BEGIN");transaction=true
     const scene=await sceneFor(db,sceneId,actor.id,true)
-    await validateTarget(db,scene,actor.id,kind,moduleId,claimId,challengeId,amount)
+    await validateTarget(db,scene,actor.id,kind,moduleId,claimId,challengeId,amount,ritualOccurrenceId)
     const daily=await db.query<{count:number}>(
       "SELECT count(*)::int AS count FROM proof_submissions WHERE submitter_id=$1 AND created_at>now()-interval '24 hours'",[actor.id])
     if(daily.rows[0].count>=12)throw new ProofError(429,"Daily private proof limit reached")
@@ -244,9 +253,9 @@ export async function POST(req:Request){
       "SELECT count(*)::int AS count FROM proof_submissions WHERE scene_id=$1 AND status='pending' AND deleted_at IS NULL",[sceneId])
     if(pending.rows[0].count>=20)throw new ProofError(429,"Too many proofs are waiting for review")
     await db.query(
-      "INSERT INTO proof_submissions(id,scene_id,submitter_id,kind,module_id,claim_id,challenge_id,amount,note,blob_path,bytes,content_type) "+
-      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
-      [proofId,sceneId,actor.id,kind,moduleId,claimId,challengeId,amount,note,uploaded,data.length,storedType])
+      "INSERT INTO proof_submissions(id,scene_id,submitter_id,kind,module_id,claim_id,challenge_id,ritual_occurrence_id,amount,note,blob_path,bytes,content_type) "+
+      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+      [proofId,sceneId,actor.id,kind,moduleId,claimId,challengeId,ritualOccurrenceId,amount,note,uploaded,data.length,storedType])
     await db.query("COMMIT");transaction=false
     inserted=true
     return json({id:proofId,message:kind==="lock"?
@@ -378,6 +387,10 @@ export async function DELETE(req:Request){
     if(proof.submitter_id!==actor.id)throw new ProofError(403,"Only the uploader can erase the image")
     if(proof.deleted_at||!proof.blob_path)throw new ProofError(409,"Image is already erased")
     await del(proof.blob_path)
+    if(proof.kind==="ritual" && proof.ritual_occurrence_id && proof.status==="pending"){
+      await db.query("UPDATE scene_ritual_occurrences SET status='pending',submitted_by=NULL,submitted_at=NULL "+
+        "WHERE id=$1 AND status='submitted'",[proof.ritual_occurrence_id])
+    }
     if(proof.kind==="lock"&&proof.lock_request_id&&proof.status==="pending"){
       await db.query("UPDATE contract_boundary_requests SET status='declined',response='Photo withdrawn by the Sub',reviewed_at=now() "+
         "WHERE id=$1 AND status='pending'",[proof.lock_request_id])
