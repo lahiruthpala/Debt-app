@@ -920,3 +920,42 @@ CREATE TABLE IF NOT EXISTS scene_ai_usage (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS scene_ai_usage_cap_idx ON scene_ai_usage(user_id,created_at DESC);
+
+
+-- Multiple independently reviewed, private images per consented assignment step.
+CREATE TABLE IF NOT EXISTS assignment_step_evidence (
+  id uuid PRIMARY KEY,
+  assignment_id uuid NOT NULL REFERENCES scene_assignments(id) ON DELETE CASCADE,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  step_number smallint NOT NULL CHECK(step_number BETWEEN 0 AND 7),
+  uploader_id text NOT NULL REFERENCES profiles(id),
+  blob_path text,
+  bytes integer NOT NULL CHECK(bytes BETWEEN 1 AND 3000000),
+  status varchar(12) NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','rejected')),
+  reviewer_id text REFERENCES profiles(id),
+  review_note varchar(500) NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS assignment_evidence_step_idx ON assignment_step_evidence(assignment_id,step_number,status);
+CREATE INDEX IF NOT EXISTS assignment_evidence_uploader_idx ON assignment_step_evidence(uploader_id,created_at DESC);
+CREATE OR REPLACE FUNCTION scene_assignment_evidence_event() RETURNS trigger LANGUAGE plpgsql AS $assignment_event$
+DECLARE actor text;
+BEGIN
+  IF TG_OP='INSERT' THEN
+    actor:=NEW.uploader_id;
+    INSERT INTO scene_events(scene_id,actor_id,event_type,ref_id,summary)
+    VALUES(NEW.scene_id,actor,'task.evidence-uploaded',NEW.id::text,'Private task-step evidence uploaded')
+    ON CONFLICT(scene_id,event_type,ref_id) DO NOTHING;
+  ELSIF TG_OP='UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    actor:=NEW.reviewer_id;
+    INSERT INTO scene_events(scene_id,actor_id,event_type,ref_id,summary)
+    VALUES(NEW.scene_id,actor,'task.evidence-'||NEW.status,NEW.id::text,'Task-step evidence reviewed')
+    ON CONFLICT(scene_id,event_type,ref_id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END $assignment_event$;
+DROP TRIGGER IF EXISTS scene_assignment_evidence_events ON assignment_step_evidence;
+CREATE TRIGGER scene_assignment_evidence_events AFTER INSERT OR UPDATE ON assignment_step_evidence
+  FOR EACH ROW EXECUTE FUNCTION scene_assignment_evidence_event();
