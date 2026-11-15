@@ -44,7 +44,8 @@ async function mutate(body:Record<string,unknown>) {
 
 export default function Dashboard() {
   const { data: session, isPending } = authClient.useSession()
-  const [tab,setTab]=useState<Tab>(()=>typeof window!=="undefined"&&new URLSearchParams(window.location.search).has("campaign")?"campaigns":"overview")
+  const [tab,setTab]=useState<Tab>("overview")
+  useEffect(()=>{if(new URLSearchParams(window.location.search).has("campaign"))setTab("campaigns")},[])
   const [me,setMe]=useState<{id:string;profile:Profile|null}|null>(null)
   const [connections,setConnections]=useState<Connection[]>([])
   const [scenes,setScenes]=useState<Scene[]>([])
