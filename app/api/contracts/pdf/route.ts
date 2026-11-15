@@ -33,6 +33,10 @@ export async function GET(req:Request){
     const s=rows[0]
     const modules=z.array(contractModuleSchema).max(8).safeParse(s.modules_snapshot??[])
     if(!modules.success)return Response.json({error:"Invalid accepted contract data"},{status:500,headers:noStore})
+    const {rows:signatures}=await getPool().query<{
+      handle:string;role:"dom"|"sub";typed_name:string;acknowledged_at:Date
+    }>("SELECT p.handle,p.role,g.typed_name,g.acknowledged_at FROM scene_signatures g "+
+      "JOIN profiles p ON p.id=g.user_id WHERE g.scene_id=$1 ORDER BY g.acknowledged_at",[id.data])
     const pdf=await renderAgreementPdf({
       id:s.id,
       title:s.title_snapshot??"Fictional Ledger Agreement",
@@ -42,7 +46,9 @@ export async function GET(req:Request){
       acceptedAt:new Date(s.approved_at).toISOString(),
       terms:{principal:s.start_principal,monthlyRate:s.monthly_rate,
         weeklyTarget:s.weekly_target,lateFee:s.late_fee},
-      modules:modules.data
+      modules:modules.data,
+      signatures:signatures.map(row=>({handle:row.handle,role:row.role,
+        typedName:row.typed_name,at:new Date(row.acknowledged_at).toISOString()}))
     })
     return new Response(new Uint8Array(pdf),{headers:{
       "Content-Type":"application/pdf",

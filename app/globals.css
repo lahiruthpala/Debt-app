@@ -925,3 +925,48 @@ button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:650px){.preset-interest-selected{grid-template-columns:1fr}
   .preset-interest-head,.discover-like-filter-head{flex-direction:column}
   .preset-interest-options button{padding:6px 8px}}
+
+/* Integrated Operations hub: isolated from the legacy game and contract workspaces. */
+.ops-top-controls{display:flex;align-items:center;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+.notification-hub{position:relative;z-index:45}.notification-trigger{display:flex;align-items:center;gap:7px;border:1px solid #70516d;border-radius:9px;padding:9px 12px;background:#29202c;color:#f4dbe7;font-size:.76rem;cursor:pointer}
+.notification-trigger:hover{border-color:#dfa1bd}.notification-count{border-radius:20px;padding:2px 7px;background:#d27999;color:#140b13;font-size:.7rem}
+.notification-panel{position:absolute;top:calc(100% + 11px);right:0;width:min(390px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#1c1520;border:1px solid #79546c;box-shadow:0 15px 55px #070407c9;border-radius:12px;padding:16px}
+.notification-panel-head{display:flex;align-items:center;justify-content:space-between}.notification-panel-head h3{font-size:1rem}
+.notification-panel-head button{background:none;box-shadow:none;color:#e5c0d1;font-size:1.3rem}
+.notification-panel-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:12px 0}
+.notification-privacy-note{color:#ac92a4;font-size:.68rem;line-height:1.5;margin-bottom:12px}
+.notification-list{max-height:420px;overflow-y:auto}.notification-entry{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;border:1px solid #483447;border-radius:9px;background:#261d29;color:#dfccd5;box-shadow:none;text-align:left;padding:12px;margin:8px 0}
+.notification-entry.unread{background:#3f2739;border-color:#a86c86}.notification-entry small{font-size:.64rem;color:#c09eae}.notification-entry strong{font-size:.85rem;color:#fff}
+.notification-entry span{font-size:.75rem;color:#d6becd;line-height:1.5}
+.ops-hub{margin-bottom:40px}.ops-hero{margin-bottom:17px}.ops-hero-mark{font-size:4rem;color:#d8a7b7}
+.ops-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:6px;border-radius:12px;border:1px solid #50394d;background:#211921;margin-bottom:17px}
+.ops-tabs button{flex:1;min-width:128px;white-space:nowrap;background:transparent;box-shadow:none;border:1px solid transparent;color:#c7abbc;padding:12px 10px;font-size:.76rem}
+.ops-tabs button.chosen,.ops-tabs button:hover{background:#4b3042;color:#fff;border-color:#8f6582}
+.ops-scene-pick{display:block;margin:18px 0;font-size:.7rem;letter-spacing:.08em;font-weight:700;color:#ccafc3}
+.ops-scene-pick select{display:block;margin-top:8px;width:min(520px,100%);letter-spacing:normal;font-size:.9rem}
+.ops-stack{display:flex;flex-direction:column;gap:15px}.ops-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.85fr);gap:18px;align-items:start}
+.ops-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.ops-stat{padding:18px}.ops-stat span{font-size:.72rem;color:#ceafbf}.ops-stat strong{display:block;font-size:2rem;line-height:1.5;color:#fff}
+.ops-bar-chart,.ops-scenario-bars{height:165px;display:flex;align-items:flex-end;gap:5px;overflow-x:auto;padding:15px 0}
+.ops-bar-column,.ops-scenario-bars>div{height:100%;flex:1;min-width:22px;max-width:55px;display:flex;align-items:center;justify-content:flex-end;flex-direction:column;gap:7px;color:#ba9baa}
+.ops-bar-column span,.ops-scenario-bars>div span{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(#e5a2c1,#77435e);min-height:2px}
+.ops-bar-column small,.ops-scenario-bars small{font-size:.61rem;color:#bba6b2}
+.ops-note,.ops-loading{background:#2c202b;border-left:3px solid #b67d97;color:#cfafbf;font-size:.77rem;padding:12px 14px;line-height:1.6;margin:12px 0}
+.ops-item{padding:14px 0;border-top:1px solid #4b3646;display:flex;flex-direction:column;gap:7px}
+.ops-item p{font-size:.79rem;line-height:1.65;color:#d1b6c3;white-space:pre-wrap;overflow-wrap:anywhere}
+.ops-item small{font-size:.7rem;color:#c6aabb}.ops-item-head{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.ops-item-head strong{font-size:.85rem;overflow-wrap:anywhere}.ops-item-head span,.ops-item-head b{font-size:.75rem}
+.ops-day-pick{display:flex;flex-wrap:wrap;gap:9px}.ops-day-pick label{display:flex;gap:4px;align-items:center;padding:7px 9px;border:1px solid #60485c;border-radius:7px;font-size:.72rem;color:#ead0df}
+.ops-review-controls{display:flex;gap:10px;flex-wrap:wrap}.ops-review-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:start;gap:12px;padding:14px;border:1px solid #60475b;background:#271d29;border-radius:10px}
+.ops-review-row>div:nth-child(2){min-width:0;display:flex;flex-direction:column;gap:7px}.ops-review-row strong{font-size:.84rem}
+.ops-review-row small{font-size:.67rem;color:#bea3b1}.ops-review-row p{font-size:.78rem;color:#e0cad6;overflow-wrap:anywhere}
+.ops-review-row a{font-size:.77rem;color:#e8b3cc;text-decoration:underline}.ops-review-row input:not([type=checkbox]){font-size:.79rem}
+.ops-error{font-size:.75rem;color:#f1b3bb;background:#441f2c;padding:8px}.ops-big-points{font-size:3rem;color:#f2c098}
+.ops-table-wrap{max-width:100%;overflow:auto}.ops-table{width:100%;border-collapse:collapse;min-width:620px;font-size:.77rem}
+.ops-table th,.ops-table td{text-align:right;padding:11px 8px;border-bottom:1px solid #493444;white-space:nowrap}
+.ops-table th:first-child,.ops-table td:first-child{text-align:left}
+.ops-clause{padding:15px;border:1px solid #644558;border-radius:10px;background:#2b202b}
+.ops-clause b{font-size:.82rem;color:#f1cade}.ops-clause p{font-size:.8rem;line-height:1.6;color:#d0b2bf;margin-top:8px}
+.ops-audit-json{max-height:240px;max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.72rem;color:#eac4d6}
+@media(max-width:1050px){.ops-split{grid-template-columns:1fr}}
+@media(max-width:650px){.ops-hero-mark{display:none}.ops-tabs button{min-width:110px}.ops-review-row{grid-template-columns:22px 1fr}.ops-review-row .person-actions{grid-column:2}.ops-top-controls{width:100%;justify-content:space-between}.notification-panel{left:0;right:auto}}

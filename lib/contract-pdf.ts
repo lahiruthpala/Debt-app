@@ -8,6 +8,7 @@ export type AgreementPdfInput={
   domHandle:string;subHandle:string;proposedAt:string;acceptedAt:string;
   terms:{principal:number;monthlyRate:number;weeklyTarget:number;lateFee:number};
   modules:ContractModule[]
+  signatures?:{handle:string;role:"dom"|"sub";typedName:string;at:string}[]
 }
 export type AgreementPdfSection={heading:string;paragraphs:string[]}
 const money=(n:number)=>"LKR "+n.toLocaleString("en-US")+" (fictional)"
@@ -39,6 +40,12 @@ export function agreementSections(input:AgreementPdfInput):AgreementPdfSection[]
       "The modules below are a snapshot of the agreed games, rules, tasks and conditions. The PDF is a record of terms, not a live balance statement."
     ]}
   ]
+  if(input.signatures?.length){
+    sections.push({heading:"Optional personal roleplay acknowledgments",paragraphs:[
+      ...input.signatures.map(s=>s.role.toUpperCase()+" @"+s.handle+" / "+s.typedName+" / "+new Date(s.at).toISOString()),
+      "These are voluntary, non-binding acknowledgments and do not override the right to withdraw consent or end participation."
+    ]})
+  }
   if(parsed.length===0){
     sections.push({heading:"Included games and modules",paragraphs:[
       "No optional interactive modules were included in this basic agreement.",

@@ -13,7 +13,7 @@ type Ritual={id:string;title:string;description:string;repeat_days:number[];loca
 type Occurrence={id:string;ritual_id:string;title:string;local_date:string;status:string;note:string;
   requires_proof:boolean;proof_id:string|null;proof_status:string|null;points:number}
 type QueueItem={id:string;kind:"proof"|"claim"|"ritual";subtype:string;created_at:string;
-  note:string;member_handle:string;scene_id:string}
+  note:string;member_handle:string;scene_id:string;content_type?:string}
 type Reward={id:string;title:string;description:string;cost_points:number;active:boolean}
 type Redemption={id:string;title:string;cost_points:number;requester_handle:string;status:string;created_at:string}
 type Signer={handle:string;role:string;typed_name:string;acknowledged_at:string}
@@ -76,6 +76,8 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
   const [viewAdmin,setViewAdmin]=useState(false)
   const [cleanup,setCleanup]=useState<any>(null)
   const requestId=useRef(0)
+  const onNotifyRef=useRef(onNotify)
+  useEffect(()=>{onNotifyRef.current=onNotify},[onNotify])
   const activeScenes=scenes.filter(s=>s.status==="active"&&s.connection_state==="active")
   const scene=scenes.find(s=>s.id===sceneId)
   const playing=scene?.status==="active"&&scene?.connection_state==="active"
@@ -104,9 +106,9 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
         if(view==="forecast")setScenario(response.weeks||[])
         else setData(response)
       }
-    }catch(error){if(sequence===requestId.current)onNotify("error",errorText(error))}
+    }catch(error){if(sequence===requestId.current)onNotifyRef.current("error",errorText(error))}
     finally{if(sequence===requestId.current)setLoading(false)}
-  },[tab,sceneId,view,weeks,extra,interest,lateWeek,onNotify])
+  },[tab,sceneId,view,weeks,extra,interest,lateWeek])
   // Keep hooks unconditional; data requests are scoped to the selected view.
   useEffect(()=>{void load()},[load])
 
@@ -306,7 +308,8 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
               onChange={e=>setSelectedQueue(current=>e.target.checked?[...current,item.id]:current.filter(x=>x!==item.id))}/>
             <div><strong>{item.subtype} · @{item.member_handle}</strong><small>{stamp(item.created_at)} · {item.kind}</small>
               {item.note&&<p>{item.note}</p>}
-              {item.kind==="proof"&&<a href={"/api/proofs?view=image&id="+item.id} target="_blank" rel="noopener noreferrer">Open private evidence (images only)</a>}
+              {item.kind==="proof"&&<a href={"/api/proofs?view="+(item.content_type==="application/pdf"?"file":"image")+"&id="+item.id}
+                target="_blank" rel="noopener noreferrer">Open private evidence</a>}
               <input aria-label={"Review note "+item.id.slice(0,8)} placeholder="Rejection reason (for proofs)"
                 maxLength={500} value={reviewNotes[item.id]||""}
                 onChange={e=>setReviewNotes({...reviewNotes,[item.id]:e.target.value})}/>
