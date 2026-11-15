@@ -248,9 +248,9 @@ export async function POST(req:Request){
         if(action==="publish"&&c.ends_at&&Date.parse(String(c.ends_at))<=Date.now())
           throw new CampaignError(409,"Campaign end time has passed")
         const next=action==="publish"||action==="resume"?"published":action==="pause"?"paused":"closed"
-        await db.query("UPDATE campaigns SET status=$1,updated_at=now(),published_at=CASE WHEN $1::text='published' "+
-          "THEN coalesce(published_at,now()) ELSE published_at END,closed_at=CASE WHEN $1::text='closed' THEN now() ELSE closed_at END "+
-          "WHERE id=$2",[next,id])
+        await db.query("UPDATE campaigns SET status=$1,updated_at=now(),published_at=CASE WHEN $2::boolean "+
+          "THEN coalesce(published_at,now()) ELSE published_at END,closed_at=CASE WHEN $3::boolean THEN now() ELSE closed_at END "+
+          "WHERE id=$4",[next,action==="publish",action==="close",id])
         await log(db,id,u.id,"campaign."+action)
         if(action==="publish"&&c.visibility==="public"){
           await db.query("INSERT INTO campaign_notifications(id,campaign_id,recipient_id,kind,title) "+
@@ -293,11 +293,11 @@ export async function POST(req:Request){
         if(count.rows[0].n>=c.member_limit)throw new CampaignError(409,"Campaign is full")
         const next=c.join_policy==="approval"&&action!=="accept_invite"?"pending":"active"
         await db.query("INSERT INTO campaign_memberships(id,campaign_id,member_id,status,accepted_version,anonymous,"+
-          "leaderboard_opt_in,personal_cap,joined_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,CASE WHEN $4::text='active' THEN now() END) "+
+          "leaderboard_opt_in,personal_cap,joined_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) "+
           "ON CONFLICT(campaign_id,member_id) DO UPDATE SET status=EXCLUDED.status,accepted_version=EXCLUDED.accepted_version,"+
           "anonymous=EXCLUDED.anonymous,leaderboard_opt_in=EXCLUDED.leaderboard_opt_in,personal_cap=EXCLUDED.personal_cap,"+
           "joined_at=EXCLUDED.joined_at,left_at=NULL,updated_at=now()",
-          [randomUUID(),id,u.id,next,c.terms_version,prefs.anonymous,prefs.showOnLeaderboard,prefs.personalCap])
+          [randomUUID(),id,u.id,next,c.terms_version,prefs.anonymous,prefs.showOnLeaderboard,prefs.personalCap,next==="active"?new Date():null])
         await log(db,id,u.id,"membership."+next)
         await creatorsNotice(db,c,u,"join",next==="pending"?"A participant requested to join":"A participant joined")
         result={message:next==="pending"?"Request sent for approval":"You joined the campaign",status:next}
@@ -333,9 +333,9 @@ export async function POST(req:Request){
           if(n.rows[0].n>=c.member_limit)throw new CampaignError(409,"Campaign is full")
         }else if(member.status==="removed")throw new CampaignError(409,"Already removed")
         const next=action==="approve_member"?"active":"removed"
-        await db.query("UPDATE campaign_memberships SET status=$1,joined_at=CASE WHEN $1::text='active' THEN now() ELSE joined_at END,"+
-          "left_at=CASE WHEN $1::text='removed' THEN now() ELSE left_at END,updated_at=now() WHERE campaign_id=$2 AND member_id=$3",
-          [next,id,targetId])
+        await db.query("UPDATE campaign_memberships SET status=$1,joined_at=CASE WHEN $4::boolean THEN now() ELSE joined_at END,"+
+          "left_at=CASE WHEN $5::boolean THEN now() ELSE left_at END,updated_at=now() WHERE campaign_id=$2 AND member_id=$3",
+          [next,id,targetId,next==="active",next==="removed"])
         await notice(db,id,targetId,"membership",next==="active"?"Your campaign request was approved":"Campaign access was removed")
         await log(db,id,u.id,"membership."+next)
         result={message:"Participant "+next}
