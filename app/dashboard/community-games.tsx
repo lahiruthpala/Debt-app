@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
+import NarrativeStudio from "./narrative-studio"
 
 type Game = {
   id:string;author_id:string|null;author_handle:string;is_official?:boolean;title:string;summary:string;
@@ -29,7 +30,7 @@ async function changeGame(input:Record<string,unknown>) {
 const describeError = (error:unknown) => error instanceof Error ? error.message : "Request failed"
 
 export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{scenes:GameScene[];selectedSceneId:string;meId:string;onNotify:Feedback}) {
-  const [panel,setPanel]=useState<"explore"|"mine"|"sessions">("explore")
+  const [panel,setPanel]=useState<"explore"|"mine"|"sessions"|"narratives">("explore")
   const [games,setGames]=useState<Game[]>([])
   const [mine,setMine]=useState<Game[]>([])
   const [search,setSearch]=useState("")
@@ -143,8 +144,11 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
       <button className={panel==="explore"?"chosen":""} onClick={()=>setPanel("explore")}>✦ Discover games <span>{games.length}</span></button>
       <button className={panel==="mine"?"chosen":""} onClick={()=>setPanel("mine")}>◇ My creations <span>{mine.length}</span></button>
       <button className={panel==="sessions"?"chosen":""} onClick={()=>setPanel("sessions")}>▤ Shared sessions</button>
+      <button className={panel==="narratives"?"chosen":""} onClick={()=>setPanel("narratives")}>✧ Branching story builder</button>
     </div>
 
+    {panel==="narratives" && <NarrativeStudio scenes={scenes} selectedSceneId={sceneChoice}
+      meId={meId} onNotify={onNotify}/>}
     {panel==="explore" && <>
       <form className="search-row community-search" onSubmit={e=>{e.preventDefault();setSubmittedSearch(search.trim());if(search.trim()===submittedSearch)void loadLibrary(search.trim())}}>
         <input aria-label="Search community games" placeholder="Search games, categories, ideas…" value={search} maxLength={80} onChange={e=>setSearch(e.target.value)}/>

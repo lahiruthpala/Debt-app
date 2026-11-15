@@ -27,6 +27,13 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,ritualO
  onAmountChange?:(amount:number)=>void;hideNote?:boolean;onNotify:Feedback;onUploaded?:()=>Promise<void>|void
 }){
  const [file,setFile]=useState<File|null>(null)
+ const [preview,setPreview]=useState<string|null>(null)
+ const [dragging,setDragging]=useState(false)
+ useEffect(()=>{
+   if(!file||!file.type.startsWith("image/")){setPreview(null);return}
+   const url=URL.createObjectURL(file);setPreview(url)
+   return ()=>{URL.revokeObjectURL(url)}
+ },[file])
  const [note,setNote]=useState("")
  const [confirmed,setConfirmed]=useState(false)
  const [working,setWorking]=useState(false)
@@ -73,11 +80,23 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,ritualO
      <input aria-label="Simulated credit amount" type="number" min={1} max={100000} step={1} required
        value={amount??""} onChange={e=>onAmountChange?.(Number(e.target.value))}/>
    </label>}
-   <label className="proof-input-label">{kind==="payment"?"Attach payment proof (image or PDF)":kind==="lock"?"Upload non-explicit lock photo":"Attach optional private photo"}
+   <div className={"proof-drop-zone "+(dragging?"dragging":"")}
+     onDragOver={e=>{e.preventDefault();setDragging(true)}}
+     onDragLeave={e=>{e.preventDefault();setDragging(false)}}
+     onDrop={e=>{e.preventDefault();setDragging(false);const chosen=e.dataTransfer.files?.[0]
+       if(chosen)setFile(chosen)}}>
+     <label className="proof-input-label">{kind==="payment"?"Attach payment proof (image or PDF)":kind==="lock"?"Upload non-explicit lock photo":"Attach optional private photo"}
      <input ref={inputRef} aria-label={kind==="payment"?"Payment proof file (image or PDF)":"Proof image for "+titles[kind]} type="file" required={kind==="payment"}
        accept={kind==="payment"?"image/jpeg,image/png,image/webp,application/pdf,.pdf":"image/jpeg,image/png,image/webp"}
        onChange={e=>setFile(e.target.files?.[0]||null)}/>
-   </label>
+     </label>
+     {preview&&<img className="proof-upload-preview" src={preview} alt="Selected private proof preview"/>}
+     {file&&<div className="proof-file-selection"><strong>{file.name}</strong>
+       <small>{Math.round(file.size/1024).toLocaleString()} KB · {file.type}</small>
+       <button type="button" className="btn btn-quiet" onClick={()=>{setFile(null);if(inputRef.current)inputRef.current.value=""}}>Remove</button>
+     </div>}
+     {!file&&<p className="muted">Or drag an image into this area. Files are private and image metadata is removed on upload.</p>}
+   </div>
    {!hideNote&&<label className="proof-input-label">Private note (optional)
      <input value={note} maxLength={500} placeholder="Brief context for your partner…"
        onChange={e=>setNote(e.target.value)}/>
@@ -102,6 +121,7 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
  const [loading,setLoading]=useState(false)
  const [working,setWorking]=useState<string|null>(null)
  const [opened,setOpened]=useState<string[]>([])
+ const [zoomed,setZoomed]=useState<Proof|null>(null)
  const [notes,setNotes]=useState<Record<string,string>>({})
  async function refresh(){
    if(!sceneId){setProofs([]);return}
@@ -168,6 +188,15 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
      </div>
      <button type="button" className="btn btn-quiet" disabled={loading} onClick={()=>void refresh()}>↻ Refresh</button>
    </div>
+   {zoomed&&<div className="proof-lightbox" role="dialog" aria-modal="true" aria-label="Private proof enlarged"
+     onClick={()=>setZoomed(null)}>
+     <div className="proof-lightbox-panel" onClick={e=>e.stopPropagation()}>
+       <div className="ops-item-head"><strong>{titles[zoomed.kind]} · @{zoomed.submitter_handle}</strong>
+         <button type="button" className="btn btn-outline" aria-label="Close enlarged proof"
+           onClick={()=>setZoomed(null)}>Close</button></div>
+       <img src={"/api/proofs?view=image&id="+encodeURIComponent(zoomed.id)} alt="Private proof enlarged"/>
+     </div>
+   </div>}
    {!proofs.length?<div className="empty-inner">No images submitted for this scene yet.</div>:
      <div className="proof-list">{proofs.map(proof=><article className="proof-item" key={proof.id}>
        <div className="proof-header">
@@ -187,9 +216,12 @@ export default function ProofCenter({sceneId,role,actorId,onNotify,onChanged}:{
                current.filter(x=>x!==proof.id):[...current,proof.id])}>
                {opened.includes(proof.id)?"Hide private image":"View private image"}
              </button>
-             {opened.includes(proof.id)&&<img loading="lazy"
-               src={"/api/proofs?view=image&id="+encodeURIComponent(proof.id)}
-               alt={"Private proof for "+titles[proof.kind]}/>}
+             {opened.includes(proof.id)&&<div className="proof-preview-panel">
+               <img loading="lazy"
+                 src={"/api/proofs?view=image&id="+encodeURIComponent(proof.id)}
+                 alt={"Private proof for "+titles[proof.kind]}/>
+               <button type="button" className="btn btn-outline" onClick={()=>setZoomed(proof)}>View full size</button>
+             </div>}
            </>}
        </div>}
        {proof.review_note&&<p className="proof-note"><b>Review:</b> {proof.review_note}</p>}

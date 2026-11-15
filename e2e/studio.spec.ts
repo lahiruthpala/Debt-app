@@ -208,6 +208,225 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await PDFDocument.load(await newPdf.body())
     await visit(domPage,"Overview")
 
+
+    // Scene Platform v3: versioned playbooks, consent-gated choices, linked tasks,
+    // private partner messages, safe timers and read-only creativity assistance.
+    await visit(domPage,"Story games")
+    await domPage.getByRole("button",{name:/Branching story builder/}).click()
+    await expect(domPage.getByRole("heading",{name:"Build interconnected adventures"})).toBeVisible()
+    await visit(domPage,"Partner space")
+    await expect(domPage.getByRole("heading",{name:"Keep your scene in one place"})).toBeVisible()
+    const aiInfo=await domPage.request.get("/api/scene-ai")
+    expect(aiInfo.status()).toBe(200)
+    expect((await aiInfo.json()).available).toBe(false)
+    expect((await domPage.request.get("/manifest.webmanifest")).status()).toBe(200)
+    expect((await domPage.request.get("/offline")).status()).toBe(200)
+
+    const playbook={title:"The Glass Archive "+stamp,summary:"A cooperative adventure with consented game points.",
+      category:"Mystery",nodes:[
+        {id:"start",title:"At the archive",text:"Two partners discover a sealed archive with a mysterious lock.",
+          choices:[{id:"enter",label:"Open the archive together",next:"middle",setsFlag:"trusted",
+            points:5,proposeTask:"Solve the archive riddle"}]},
+        {id:"middle",title:"The hidden chapter",text:"A hidden message asks the explorers to finish their adventure.",
+          choices:[{id:"finish",label:"Complete the adventure",next:"end",requiresFlag:"trusted",points:3,proposeTask:""}]},
+        {id:"end",title:"The final discovery",text:"Both explorers return safely with their final answers.",choices:[]}
+      ]}
+    const savedStory=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-save",definition:playbook,publish:true}
+    })
+    expect(savedStory.status()).toBe(201)
+    const playbookId=(await savedStory.json()).id
+    const proposedStory=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-propose",sceneId:proposedId,id:playbookId}
+    })
+    expect(proposedStory.status()).toBe(201)
+    const storySession=(await proposedStory.json()).id
+    expect((await (await subPage.request.get("/api/scene-platform?view=stories&sceneId="+proposedId)).json())
+      .sessions.find((x:{id:string})=>x.id===storySession).status).toBe("proposed")
+    const selfApproveStory=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-decision",sceneId:proposedId,id:storySession,approve:true}
+    })
+    expect(selfApproveStory.status()).toBe(403)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-decision",sceneId:proposedId,id:storySession,approve:true}
+    })).status()).toBe(200)
+    const firstChoice=await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-choice",sceneId:proposedId,id:storySession,choiceId:"enter"}
+    })
+    expect(firstChoice.status()).toBe(200)
+    const repeatedChoice=await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-choice",sceneId:proposedId,id:storySession,choiceId:"finish"}
+    })
+    expect(repeatedChoice.status()).toBe(409)
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"story-choice",sceneId:proposedId,id:storySession,choiceId:"finish"}
+    })).status()).toBe(200)
+    const finishedStory=(await (await subPage.request.get("/api/scene-platform?view=stories&sceneId="+proposedId)).json())
+      .sessions.find((x:{id:string})=>x.id===storySession)
+    expect(finishedStory.status).toBe("finished")
+    expect(finishedStory.state.flags).toContain("trusted")
+    const storyTask=(await (await domPage.request.get("/api/scene-platform?view=tasks&sceneId="+proposedId)).json())
+      .tasks.find((x:{story_session_id:string})=>x.story_session_id===storySession)
+    expect(storyTask.status).toBe("proposed")
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-decision",sceneId:proposedId,id:storyTask.id,accept:true}
+    })).status()).toBe(200)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:storyTask.id,note:"Completed the shared riddle."}
+    })).status()).toBe(200)
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:storyTask.id,approve:true,note:"Approved"}
+    })).status()).toBe(200)
+
+    const advanced=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-create",sceneId:proposedId,
+        task:{title:"Two-step detective challenge",description:"A voluntary shared creative assignment.",
+          points:20,steps:[
+            {id:"write",title:"Write the clue",instruction:"Record a descriptive clue for the detective.",
+              requiresNote:true,timerMinutes:0},
+            {id:"reflect",title:"Reflect on the result",instruction:"Write a brief scene reflection.",
+              requiresNote:false,timerMinutes:0}
+          ]}
+      }
+    })
+    expect(advanced.status()).toBe(201)
+    const taskId=(await advanced.json()).id
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-decision",sceneId:proposedId,id:taskId,accept:true}
+    })).status()).toBe(403)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-decision",sceneId:proposedId,id:taskId,accept:true}
+    })).status()).toBe(200)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:taskId,note:"Too short"}
+    })).status()).toBe(400)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:taskId,note:"The first clue is hidden in the archive."}
+    })).status()).toBe(200)
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:taskId,approve:true,note:"Clear"}
+    })).status()).toBe(200)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:taskId,note:"We found the answer together."}
+    })).status()).toBe(200)
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:taskId,approve:true,note:"Good"}
+    })).status()).toBe(200)
+
+    // Advanced steps can demand one or more private, independently reviewed images.
+    const photographicTask=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-create",sceneId:proposedId,
+        task:{title:"Voluntary evidence gallery",description:"A text-and-image creative challenge.",
+          points:10,steps:[{id:"art",title:"Photograph a drawing",
+            instruction:"Share a non-explicit photograph of a drawing.",
+            requiresNote:false,requiresPhoto:true,timerMinutes:0}]}
+      }
+    })
+    expect(photographicTask.status()).toBe(201)
+    const photographicTaskId=(await photographicTask.json()).id
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-decision",sceneId:proposedId,id:photographicTaskId,accept:true}
+    })).status()).toBe(200)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:photographicTaskId,note:"Done"}
+    })).status()).toBe(409)
+    if(liveProofs){
+      const uploadedImages:string[]=[]
+      for(let imageNumber=0;imageNumber<2;imageNumber++){
+        const photo=await subPage.request.post("/api/assignment-evidence",{
+          headers:{origin:apiOrigin},multipart:{assignmentId:photographicTaskId,consent:"yes",
+            file:{name:"public-art-"+imageNumber+".png",mimeType:"image/png",buffer:testPhoto}}
+        })
+        expect(photo.status()).toBe(201)
+        uploadedImages.push((await photo.json()).id)
+      }
+      const listed=(await (await domPage.request.get("/api/assignment-evidence?assignmentId="+photographicTaskId)).json())
+      expect(listed.evidence).toHaveLength(2)
+      for(const photoId of uploadedImages){
+        const loaded=await domPage.request.get("/api/assignment-evidence?view=image&id="+photoId)
+        expect(loaded.status()).toBe(200)
+        expect(loaded.headers()["content-type"]).toBe("image/webp")
+      }
+      expect((await subPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:photographicTaskId,note:"Uploaded"}
+      })).status()).toBe(200)
+      expect((await domPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:photographicTaskId,approve:true}
+      })).status()).toBe(409)
+      for(const photoId of uploadedImages){
+        expect((await domPage.request.patch("/api/assignment-evidence",{
+          headers:{origin:apiOrigin},data:{id:photoId,approve:true,note:""}
+        })).status()).toBe(200)
+      }
+      expect((await domPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:photographicTaskId,approve:true}
+      })).status()).toBe(200)
+      for(const photoId of uploadedImages){
+        expect((await subPage.request.delete("/api/assignment-evidence",{
+          headers:{origin:apiOrigin},data:{id:photoId}
+        })).status()).toBe(200)
+      }
+    }else{
+      const noBlob=await subPage.request.post("/api/assignment-evidence",{
+        headers:{origin:apiOrigin},multipart:{assignmentId:photographicTaskId,consent:"yes",
+          file:{name:"public-art.png",mimeType:"image/png",buffer:testPhoto}}
+      })
+      expect(noBlob.status()).toBe(503)
+      expect((await subPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-cancel",sceneId:proposedId,id:photographicTaskId}
+      })).status()).toBe(200)
+    }
+
+    const sent=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"chat-send",sceneId:proposedId,message:"A private scene message."}
+    })
+    expect(sent.status()).toBe(201)
+    const messageId=(await sent.json()).id
+    const conversation=(await (await subPage.request.get("/api/scene-platform?view=chat&sceneId="+proposedId)).json())
+    expect(conversation.messages.some((m:{id:string;body:string})=>m.id===messageId&&m.body==="A private scene message.")).toBe(true)
+    expect(conversation.events.some((e:{event_type:string})=>e.event_type==="story.choice")).toBe(true)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"chat-edit",sceneId:proposedId,id:messageId,message:"Forged edit"}
+    })).status()).toBe(403)
+    expect((await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"chat-delete",sceneId:proposedId,id:messageId}
+    })).status()).toBe(200)
+
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"interest-save",items:[
+        {interest:"Story games",level:4,public:true},{interest:"Communication",level:3,public:false}
+      ]}
+    })).status()).toBe(200)
+    const interestView=(await (await domPage.request.get("/api/scene-platform?view=interests&sceneId="+proposedId)).json())
+    expect(interestView.partner.some((v:{interest:string})=>v.interest==="Story games")).toBe(true)
+    expect(interestView.partner.some((v:{interest:string})=>v.interest==="Communication")).toBe(false)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"safety-save",sceneId:proposedId,
+        settings:{limits:["no-real-money","no-intimate-images"],shareLimits:true,aiOptIn:true,aftercare:"Take a short break"}}
+    })).status()).toBe(200)
+    const safetyView=await (await domPage.request.get("/api/scene-platform?view=safety&sceneId="+proposedId)).json()
+    expect(safetyView.partnerLimits).toContain("no-real-money")
+    expect((await subPage.request.post("/api/scene-ai",{
+      headers:{origin:apiOrigin},data:{sceneId:proposedId,kind:"story",
+        prompt:"Suggest a non-explicit mystery puzzle for two cooperative players."}
+    })).status()).toBe(503)
+    const timer=await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"timer-start",sceneId:proposedId,label:"Self-reported voluntary focus"}
+    })
+    expect(timer.status()).toBe(201)
+    const timerId=(await timer.json()).id
+    for(const operation of ["timer-pause","timer-resume","timer-end"]){
+      expect((await subPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:operation,sceneId:proposedId,id:timerId}
+      })).status()).toBe(200)
+    }
+    const stats=(await (await domPage.request.get("/api/scene-platform?view=analytics&sceneId="+proposedId)).json())
+    expect(stats.counts.some((r:{event_type:string})=>r.event_type==="story.choice")).toBe(true)
+    const balanceAfterPlatform=(await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    expect([balanceAfterPlatform.principal,balanceAfterPlatform.interest,balanceAfterPlatform.penalties])
+      .toEqual([250000,0,0])
+    await visit(domPage,"Overview")
+
     // Publish an original game and play it as both members of the approved scene.
     const creativeTitle = "Story_" + stamp
     await visit(domPage, "Story games")
@@ -438,7 +657,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
 
     // Safe words are operational: either partner may pause or end, only the sub resumes.
     await domPage.reload()
-    await domPage.getByRole("button", { name: /Pause scene/ }).click()
+    await domPage.getByRole("button", { name: "Stop scene", exact:true }).click()
     await expect(domPage.getByRole("status")).toContainText("Scene paused")
     await subPage.reload()
     await expect(subPage.getByRole("button", { name: /Resume with consent/ })).toBeVisible()
@@ -485,7 +704,11 @@ test("public routes load; unauthenticated studio operations are denied", async (
     headers: { origin: apiOrigin }, data: { action: "profile" },
   })
   expect(blocked.status()).toBe(401)
-  expect((await request.get("/api/games?view=library")).status()).toBe(401)
+  expect((await request.get("/api/scene-platform?view=library")).status()).toBe(401)
+  expect((await request.get("/api/scene-ai")).status()).toBe(401)
+  expect((await request.post("/api/scene-platform",{headers:{origin:apiOrigin},
+    data:{action:"chat-send",sceneId:"11111111-1111-4111-8111-111111111111",message:"hello"}})).status()).toBe(401)
+    expect((await request.get("/api/games?view=library")).status()).toBe(401)
   expect((await request.get("/api/proofs?sceneId=11111111-1111-4111-8111-111111111111")).status()).toBe(401)
   expect((await request.post("/api/proofs",{headers:{origin:apiOrigin},multipart:{sceneId:"11111111-1111-4111-8111-111111111111"}})).status()).toBe(401)
   expect((await request.patch("/api/proofs",{headers:{origin:apiOrigin},data:{id:"11111111-1111-4111-8111-111111111111",approve:true}})).status()).toBe(401)
