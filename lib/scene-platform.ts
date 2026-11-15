@@ -1,5 +1,4 @@
 import {z} from "zod"
-import {randomInt} from "node:crypto"
 
 /**
  * Deterministic scene capabilities. No user-authored scripts and no automatic
@@ -79,7 +78,9 @@ export function narrativeStep(definition:Narrative,state:NarrativeState,choiceId
   let next=choice.next
   if(choice.randomTargets?.length){
     const total=choice.randomTargets.reduce((sum,item)=>sum+item.weight,0)
-    let draw=roll??randomInt(total)
+    // The server supplies a cryptographically secure draw; pure helper remains browser-safe.
+    if(roll===undefined)throw Error("Random encounter requires a server-generated draw")
+    let draw=roll
     if(!Number.isInteger(draw)||draw<0||draw>=total)throw Error("Invalid encounter roll")
     for(const item of choice.randomTargets){
       if(draw<item.weight){next=item.next;break}

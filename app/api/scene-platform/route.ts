@@ -1,4 +1,4 @@
-import {randomUUID} from "node:crypto"
+import {randomUUID,randomInt} from "node:crypto"
 import type {PoolClient} from "pg"
 import {z} from "zod"
 import {getPool} from "@/lib/db"
@@ -322,7 +322,13 @@ export async function POST(req:Request){
       const state=parse(z.object({nodeId:z.string(),flags:z.array(z.string()),items:z.array(z.string()).max(12).default([]),decisions:z.number().int()}),story.state)
       const choiceId=parse(z.string(),body?.choiceId)
       let step:ReturnType<typeof narrativeStep>
-      try{step=narrativeStep(definition,state,choiceId)}
+      try{
+        const chapter=definition.nodes.find(node=>node.id===state.nodeId)
+        const choice=chapter?.choices.find(option=>option.id===choiceId)
+        const routes=choice?.randomTargets
+        const total=routes?.reduce((sum,item)=>sum+item.weight,0)||0
+        step=narrativeStep(definition,state,choiceId,total>0?randomInt(total):undefined)
+      }
       catch(e){throw new PlatformError(409,e instanceof Error?e.message:"Invalid story choice")}
       const eventId=randomUUID()
       const today=await db.query<{earned:number}>(
