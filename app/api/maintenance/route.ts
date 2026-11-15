@@ -59,7 +59,8 @@ export async function POST(req:Request){
       throw new MaintenanceError(503,"Private Blob storage is not configured")
     const dryRun=valid.data.dryRun
     const {rows}=await getPool().query<{blob_path:string}>(
-      "SELECT blob_path FROM proof_submissions WHERE blob_path IS NOT NULL")
+      "SELECT blob_path FROM proof_submissions WHERE blob_path IS NOT NULL UNION ALL "+
+      "SELECT blob_path FROM assignment_step_evidence WHERE blob_path IS NOT NULL")
     const referenced=new Set(rows.map(row=>row.blob_path))
     const threshold=Date.now()-48*3600000
     const candidates:string[]=[]
@@ -81,7 +82,8 @@ export async function POST(req:Request){
       for(const path of candidates.slice(0,25)){
         // Recheck just before deletion so concurrent uploads are never erased.
         const verify=await getPool().query(
-          "SELECT 1 FROM proof_submissions WHERE blob_path=$1 LIMIT 1",[path])
+          "SELECT 1 FROM proof_submissions WHERE blob_path=$1 "+
+          "UNION ALL SELECT 1 FROM assignment_step_evidence WHERE blob_path=$1 LIMIT 1",[path])
         if(verify.rowCount)continue
         try{await del(path);deleted++}
         catch(error){errors.push(error instanceof Error?error.message:"Deletion failed")}

@@ -1,6 +1,7 @@
 "use client"
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from "react"
 import {interestGroups} from "@/lib/showcase"
+import AssignmentEvidencePanel from "./assignment-evidence"
 import {safetyLimitOptions,type AdvancedTask} from "@/lib/scene-platform"
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
@@ -24,7 +25,7 @@ type Tab=typeof tabs[number][0]
 const end=(error:unknown)=>error instanceof Error?error.message:"Action failed"
 const fmt=(time:string)=>new Date(time).toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"})
 const initialSteps:AdvancedTask["steps"]=[{id:"step-1",title:"First milestone",
-  instruction:"Write a short reflection or complete this agreed challenge.",requiresNote:true,timerMinutes:0}]
+  instruction:"Write a short reflection or complete this agreed challenge.",requiresNote:true,requiresPhoto:false,timerMinutes:0}]
 async function load(view:string,sceneId:string){
   const response=await fetch("/api/scene-platform?"+new URLSearchParams({view,sceneId}),{cache:"no-store"})
   const data=await response.json().catch(()=>({}))
@@ -138,7 +139,7 @@ export default function PartnerSpace({scenes,selectedSceneId,meId,role,onNotify,
   function addStep(){
     if(taskForm.steps.length>=8)return
     const id="step-"+(taskForm.steps.length+1)
-    setTaskForm(old=>({...old,steps:[...old.steps,{id,title:"Next milestone",instruction:"Describe the next optional step.",requiresNote:false,timerMinutes:0}]}))
+    setTaskForm(old=>({...old,steps:[...old.steps,{id,title:"Next milestone",instruction:"Describe the next optional step.",requiresNote:false,requiresPhoto:false,timerMinutes:0}]}))
   }
   function onChatSubmit(e:FormEvent){
     e.preventDefault()
@@ -252,6 +253,8 @@ export default function PartnerSpace({scenes,selectedSceneId,meId,role,onNotify,
             onChange={e=>taskStepChange(i,{timerMinutes:Number(e.target.value)})}/></label>
           <label className="check-label"><input type="checkbox" checked={step.requiresNote}
             onChange={e=>taskStepChange(i,{requiresNote:e.target.checked})}/>Require a private written report</label>
+          <label className="check-label"><input type="checkbox" checked={step.requiresPhoto||false}
+            onChange={e=>taskStepChange(i,{requiresPhoto:e.target.checked})}/>Require 1–5 non-explicit private photos with Dom review</label>
         </div>)}
         <button type="button" className="btn btn-outline" disabled={taskForm.steps.length>=8} onClick={addStep}>＋ Add step</button>
         <button className="btn btn-red" disabled={!canPlay||working}>Propose to partner</button>
@@ -275,6 +278,9 @@ export default function PartnerSpace({scenes,selectedSceneId,meId,role,onNotify,
               </div>}
               {step&&["active","submitted"].includes(task.status)&&<div className="scene-task-step">
                 <strong>Current step: {step.title}</strong><p>{step.instruction}</p>
+                {step.requiresPhoto&&<AssignmentEvidencePanel assignmentId={task.id}
+                  stepNumber={task.next_step} role={role} active={Boolean(canPlay)}
+                  taskStatus={task.status} onNotify={onNotify} onChanged={reload}/>}
                 {step.timerMinutes>0&&<small>Optional activity timer: {step.timerMinutes} min · {task.step_started_at?"Started "+fmt(task.step_started_at):"Not started"}</small>}
                 {task.current_submission?.note&&<p><b>Report:</b> {task.current_submission.note}</p>}
                 {task.current_submission?.review_note&&<p><b>Review:</b> {task.current_submission.review_note}</p>}

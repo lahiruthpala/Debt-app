@@ -104,6 +104,7 @@ export const taskStepSchema=z.object({
   id:slug,title:z.string().trim().min(3).max(100),
   instruction:z.string().trim().min(5).max(400),
   requiresNote:z.boolean().default(false),
+  requiresPhoto:z.boolean().default(false),
   timerMinutes:z.number().int().min(0).max(120).default(0),
 }).strict()
 export const assignmentInput=z.object({

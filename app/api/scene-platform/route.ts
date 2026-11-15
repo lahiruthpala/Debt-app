@@ -381,7 +381,8 @@ export async function POST(req:Request){
         [id,sceneId])
       if(!rows.length)throw new PlatformError(404,"Task not found")
       const task=rows[0],steps=parse(z.array(z.object({
-        id:z.string(),title:z.string(),instruction:z.string(),requiresNote:z.boolean(),timerMinutes:z.number().int()
+        id:z.string(),title:z.string(),instruction:z.string(),requiresNote:z.boolean(),
+        requiresPhoto:z.boolean().default(false),timerMinutes:z.number().int()
       })),task.steps)
       if(action==="task-cancel"){
         if(task.status==="completed"||task.status==="cancelled"||task.status==="declined")
@@ -450,6 +451,14 @@ export async function POST(req:Request){
         if(!submissions.length)throw new PlatformError(409,"Step submission unavailable")
         await db.query("UPDATE assignment_step_submissions SET status=$1,reviewed_by=$2,reviewed_at=now(),review_note=$3 "+
           "WHERE id=$4",[approve?"approved":"rejected",actor.id,note,submissions[0].id])
+        if(approve&&steps[task.next_step]?.requiresPhoto){
+          const {rows:evidence}=await db.query<{approved:number;pending:number}>(
+            "SELECT count(*) FILTER(WHERE status='approved')::int AS approved,"+
+            "count(*) FILTER(WHERE status='pending')::int AS pending FROM assignment_step_evidence "+
+            "WHERE assignment_id=$1 AND step_number=$2 AND deleted_at IS NULL",[id,task.next_step])
+          if(!evidence[0].approved||evidence[0].pending)
+            throw new PlatformError(409,"Approve at least one private step photo and review remaining uploads before accepting this step")
+        }
         const finished=approve&&task.next_step+1>=steps.length
         await db.query("UPDATE scene_assignments SET status=$1::text,next_step=$2,step_started_at=NULL,"+
           "completed_at=CASE WHEN $1='completed' THEN now() ELSE NULL END WHERE id=$3",
