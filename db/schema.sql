@@ -1167,3 +1167,14 @@ CREATE TABLE IF NOT EXISTS campaign_reports (
 
 -- Optional image is delivered through an authenticated private Blob proxy.
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS cover_blob_path text;
+
+
+-- Following a creator never establishes a private connection or membership.
+CREATE TABLE IF NOT EXISTS campaign_creator_follows (
+  creator_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  follower_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(creator_id,follower_id),
+  CHECK(creator_id<>follower_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_creator_follows_follower_idx ON campaign_creator_follows(follower_id);
