@@ -132,7 +132,9 @@ export async function GET(req:Request){
           "FROM campaigns c JOIN profiles p ON p.id=c.creator_id "+
           "LEFT JOIN campaign_memberships m ON m.campaign_id=c.id AND m.member_id=$1 "+
           "LEFT JOIN campaign_follows f ON f.campaign_id=c.id AND f.follower_id=$1 "+
-          "WHERE c.creator_id=$1 OR m.member_id=$1 OR f.follower_id=$1 ORDER BY c.updated_at DESC LIMIT 100",[u.id])
+          "WHERE c.creator_id=$1 OR m.member_id=$1 OR f.follower_id=$1 OR "+
+          "(c.status='published' AND c.visibility='public' AND EXISTS(SELECT 1 FROM campaign_creator_follows cf "+
+          "WHERE cf.creator_id=c.creator_id AND cf.follower_id=$1)) ORDER BY c.updated_at DESC LIMIT 100",[u.id])
         return res({campaigns:rows.map(r=>({...r,goal:Number(r.goal)}))})
       }
       if(view==="notifications"){
@@ -145,7 +147,7 @@ export async function GET(req:Request){
       const c=await campaign(db,id,u)
       const isCreator=c.creator_id===u.id
       const m=await membership(db,id,u.id)
-      const [details,totals,activities,posts,leaderboard,contributions,claims,pollVotes,following]=await Promise.all([
+      const [details,totals,activities,posts,leaderboard,contributions,claims,pollVotes,following,creatorFollowing]=await Promise.all([
         db.query("SELECT c.*,p.handle AS creator_handle FROM campaigns c JOIN profiles p ON p.id=c.creator_id WHERE c.id=$1",[id]),
         campaignTotals(db,id),
         db.query("SELECT id,kind,config,state,created_at FROM campaign_activities WHERE campaign_id=$1 ORDER BY created_at ASC LIMIT 30",[id]),
@@ -175,7 +177,8 @@ export async function GET(req:Request){
           "AND ($2::boolean OR t.member_id=$3) ORDER BY t.created_at DESC LIMIT 100",[id,isCreator,u.id]),
         db.query("SELECT activity_id,choice_index,count(*)::int AS votes FROM campaign_votes WHERE campaign_id=$1 "+
           "GROUP BY activity_id,choice_index",[id]),
-        db.query("SELECT 1 FROM campaign_follows WHERE campaign_id=$1 AND follower_id=$2",[id,u.id])
+        db.query("SELECT 1 FROM campaign_follows WHERE campaign_id=$1 AND follower_id=$2",[id,u.id]),
+        db.query("SELECT 1 FROM campaign_creator_follows WHERE creator_id=$1 AND follower_id=$2",[c.creator_id,u.id])
       ])
       const row=details.rows[0]
       const visiblePosts=posts.rows.map(p=>({id:p.id,kind:p.kind,parent_id:p.parent_id,content:p.content,
@@ -201,7 +204,7 @@ export async function GET(req:Request){
         totals:{...totals,progress:progressPercent(totals.total,Number(c.goal))},
         isCreator,membership:m?{status:m.status,anonymous:m.anonymous,leaderboard_opt_in:m.leaderboard_opt_in,
           personal_cap:Number(m.personal_cap),accepted_version:m.accepted_version}:null,
-        following:Boolean(following.rowCount),activities:activities.rows,posts:visiblePosts,
+        following:Boolean(following.rowCount),creatorFollowing:Boolean(creatorFollowing.rowCount),activities:activities.rows,posts:visiblePosts,
         leaderboard:c.leaderboard_enabled?leaderboard.rows.map(x=>({handle:x.handle,points:Number(x.points),total:Number(x.total)})):[],
         contributions:safeContributions,claims:safeClaims,memberQueue:members,votes:pollVotes.rows})
     }finally{db.release()}
@@ -249,6 +252,11 @@ export async function POST(req:Request){
           "THEN coalesce(published_at,now()) ELSE published_at END,closed_at=CASE WHEN $1::text='closed' THEN now() ELSE closed_at END "+
           "WHERE id=$2",[next,id])
         await log(db,id,u.id,"campaign."+action)
+        if(action==="publish"&&c.visibility==="public"){
+          await db.query("INSERT INTO campaign_notifications(id,campaign_id,recipient_id,kind,title) "+
+            "SELECT gen_random_uuid(),$1,follower_id,'creator',$2 FROM campaign_creator_follows "+
+            "WHERE creator_id=$3 LIMIT 10000",[id,"New campaign from @"+u.handle,u.id])
+        }
         result={message:"Campaign "+next}
       }else if(action==="edit"){
         ensureCreator(c,u)
@@ -360,6 +368,13 @@ export async function POST(req:Request){
         if(body.follow===true)await db.query("INSERT INTO campaign_follows(campaign_id,follower_id) VALUES($1,$2) ON CONFLICT DO NOTHING",[id,u.id])
         else await db.query("DELETE FROM campaign_follows WHERE campaign_id=$1 AND follower_id=$2",[id,u.id])
         result={message:body.follow===true?"Following campaign":"Unfollowed campaign"}
+      }else if(action==="follow_creator"){
+        if(c.creator_id===u.id)throw new CampaignError(409,"Cannot follow yourself")
+        if(c.status==="draft"||c.visibility!=="public")throw new CampaignError(403,"Follow creators from public campaigns")
+        if(body.follow===true)await db.query("INSERT INTO campaign_creator_follows(creator_id,follower_id) "+
+          "VALUES($1,$2) ON CONFLICT DO NOTHING",[c.creator_id,u.id])
+        else await db.query("DELETE FROM campaign_creator_follows WHERE creator_id=$1 AND follower_id=$2",[c.creator_id,u.id])
+        result={message:body.follow===true?"Following creator":"Unfollowed creator"}
       }else if(action==="contribute"){
         ensureOpen(c)
         const m=await activeMember(db,c,u)
