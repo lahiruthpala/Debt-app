@@ -313,6 +313,70 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
       headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:taskId,approve:true,note:"Good"}
     })).status()).toBe(200)
 
+    // Advanced steps can demand one or more private, independently reviewed images.
+    const photographicTask=await domPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-create",sceneId:proposedId,
+        task:{title:"Voluntary evidence gallery",description:"A text-and-image creative challenge.",
+          points:10,steps:[{id:"art",title:"Photograph a drawing",
+            instruction:"Share a non-explicit photograph of a drawing.",
+            requiresNote:false,requiresPhoto:true,timerMinutes:0}]}
+      }
+    })
+    expect(photographicTask.status()).toBe(201)
+    const photographicTaskId=(await photographicTask.json()).id
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-decision",sceneId:proposedId,id:photographicTaskId,accept:true}
+    })).status()).toBe(200)
+    expect((await subPage.request.post("/api/scene-platform",{
+      headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:photographicTaskId,note:"Done"}
+    })).status()).toBe(409)
+    if(liveProofs){
+      const uploadedImages:string[]=[]
+      for(let imageNumber=0;imageNumber<2;imageNumber++){
+        const photo=await subPage.request.post("/api/assignment-evidence",{
+          headers:{origin:apiOrigin},multipart:{assignmentId:photographicTaskId,consent:"yes",
+            file:{name:"public-art-"+imageNumber+".png",mimeType:"image/png",buffer:testPhoto}}
+        })
+        expect(photo.status()).toBe(201)
+        uploadedImages.push((await photo.json()).id)
+      }
+      const listed=(await (await domPage.request.get("/api/assignment-evidence?assignmentId="+photographicTaskId)).json())
+      expect(listed.evidence).toHaveLength(2)
+      for(const photoId of uploadedImages){
+        const loaded=await domPage.request.get("/api/assignment-evidence?view=image&id="+photoId)
+        expect(loaded.status()).toBe(200)
+        expect(loaded.headers()["content-type"]).toBe("image/webp")
+      }
+      expect((await subPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-submit",sceneId:proposedId,id:photographicTaskId,note:"Uploaded"}
+      })).status()).toBe(200)
+      expect((await domPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:photographicTaskId,approve:true}
+      })).status()).toBe(409)
+      for(const photoId of uploadedImages){
+        expect((await domPage.request.patch("/api/assignment-evidence",{
+          headers:{origin:apiOrigin},data:{id:photoId,approve:true,note:""}
+        })).status()).toBe(200)
+      }
+      expect((await domPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-review",sceneId:proposedId,id:photographicTaskId,approve:true}
+      })).status()).toBe(200)
+      for(const photoId of uploadedImages){
+        expect((await subPage.request.delete("/api/assignment-evidence",{
+          headers:{origin:apiOrigin},data:{id:photoId}
+        })).status()).toBe(200)
+      }
+    }else{
+      const noBlob=await subPage.request.post("/api/assignment-evidence",{
+        headers:{origin:apiOrigin},multipart:{assignmentId:photographicTaskId,consent:"yes",
+          file:{name:"public-art.png",mimeType:"image/png",buffer:testPhoto}}
+      })
+      expect(noBlob.status()).toBe(503)
+      expect((await subPage.request.post("/api/scene-platform",{
+        headers:{origin:apiOrigin},data:{action:"task-cancel",sceneId:proposedId,id:photographicTaskId}
+      })).status()).toBe(200)
+    }
+
     const sent=await domPage.request.post("/api/scene-platform",{
       headers:{origin:apiOrigin},data:{action:"chat-send",sceneId:proposedId,message:"A private scene message."}
     })
