@@ -3,12 +3,14 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 type Game = {
-  id:string;author_id:string;author_handle:string;title:string;summary:string;
+  id:string;author_id:string|null;author_handle:string;is_official?:boolean;title:string;summary:string;
   category:string;rules:string;opening_prompt:string;published:boolean;play_count:number
 }
 type GameSession = {id:string;scene_id:string;game_id:string;title_snapshot:string;state:string;created_at:string;started_by_handle:string}
 type Turn = {id:string;content:string;created_at:string;actor_id:string;actor_handle:string}
-type SessionDetails = {session:{id:string;state:string;scene_id:string;title_snapshot:string;rules_snapshot:string;prompt_snapshot:string;started_by_handle:string};turns:Turn[]}
+type StoryChoice = {id:string;label:string;next:string}
+type StoryChapter = {id:string;chapter:string;text:string;choices:StoryChoice[];step:number;complete:boolean}
+type SessionDetails = {session:{id:string;state:string;scene_id:string;title_snapshot:string;rules_snapshot:string;prompt_snapshot:string;started_by_handle:string};turns:Turn[];story:StoryChapter|null}
 export type GameScene = {id:string;status:string;connection_state:string;other_handle:string}
 type Feedback = (type:"pending"|"success"|"error",message:string)=>void
 const blank = {title:"",summary:"",category:"Story",rules:"",openingPrompt:""}
@@ -119,6 +121,12 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
       void loadSession(sessionId)
     })
   }
+  async function choose(choiceId:string) {
+    if(!sessionId)return
+    await perform({action:"choice",sessionId,choiceId},()=>{void loadSession(sessionId)})
+  }
+  const lastActor=details?.turns.at(-1)?.actor_id
+  const isMyChoice=lastActor!==meId
   const selectedSession=sessions.find(s=>s.id===sessionId)
   const isOpen=details?.session.id===sessionId && details.session.state==="active"
   const isActiveScene=sceneForPlay?.status==="active" && sceneForPlay.connection_state==="active"
@@ -127,7 +135,7 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
     <div className="community-hero">
       <div><span className="eyebrow">NEW · COMMUNITY GAME STUDIO</span>
         <h2>Make the rules. Share the story.</h2>
-        <p>Create original games with your own rules, publish them for everyone to discover, and play together inside a consented connection. Every move is a shared story entry—no scripts or automatic ledger changes.</p>
+        <p>Explore five interactive branching adventures or create original games with your own rules. Play together inside a consented connection. Story choices never change fictional balances.</p>
       </div>
       <button className="btn btn-red" onClick={()=>{clearEditor();setPanel("mine")}}>＋ Create a game</button>
     </div>
@@ -149,12 +157,12 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
             onClick={()=>setChosenGame(game.id)} aria-label={"View game "+game.title}>
             <div className="game-card-meta"><span>{game.category}</span><span>◇ {game.play_count} plays</span></div>
             <h3>{game.title}</h3><p>{game.summary}</p>
-            <div className="game-author">by @{game.author_handle} <span>Read rules →</span></div>
+            <div className="game-author">{game.is_official?"✦ Official interactive story":"by @"+game.author_handle} <span>Read rules →</span></div>
           </button>)}
         </div>
         <aside className="dash-card game-inspector">
           {!selectedGame?<div className="inspector-empty"><div>✧</div><h3>Pick your next story</h3><p>Choose a published game to read its rules and invite your connected partner to play.</p></div>:<>
-            <div className="eyebrow">COMMUNITY RULEBOOK · {selectedGame.category.toUpperCase()}</div>
+            <div className="eyebrow">{selectedGame.is_official?"OFFICIAL INTERACTIVE STORY":"COMMUNITY RULEBOOK"} · {selectedGame.category.toUpperCase()}</div>
             <h3>{selectedGame.title}</h3><p className="muted">{selectedGame.summary}</p>
             <h4>How to play</h4><div className="rule-copy">{selectedGame.rules}</div>
             {selectedGame.opening_prompt && <><h4>Opening prompt</h4><p className="rule-copy">{selectedGame.opening_prompt}</p></>}
@@ -166,7 +174,7 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
             </label>
             <button className="btn btn-red full" disabled={working||!isActiveScene} onClick={()=>void start(selectedGame.id)}>Start with your partner ↗</button>
             {!isActiveScene && <p className="community-hint">An active approved scene is required. You can still browse and publish games.</p>}
-            {selectedGame.author_id!==meId && <button className="btn btn-quiet report-game" disabled={working} onClick={()=>{
+            {!selectedGame.is_official && selectedGame.author_id!==meId && <button className="btn btn-quiet report-game" disabled={working} onClick={()=>{
               const reason=window.prompt("Why are you reporting this game? (10–500 characters)")
               if(reason)void perform({action:"report",gameId:selectedGame.id,reason})
             }}>Report game</button>}
@@ -221,15 +229,25 @@ export default function CommunityGames({scenes,selectedSceneId,meId,onNotify}:{s
           <h3>{details.session.title_snapshot}</h3>
           <div className="rule-copy session-rules">{details.session.rules_snapshot}</div>
           {details.session.prompt_snapshot && <div className="game-opening"><strong>Opening prompt</strong><p>{details.session.prompt_snapshot}</p></div>}
-          <div className="section-title session-heading"><h2>Story turns</h2><span>{details.turns.length}/80 TURNS</span></div>
+          {details.story && <div className="story-chapter" aria-label="Interactive story chapter">
+            <span className="eyebrow">CHAPTER {details.story.step} · {details.story.chapter.toUpperCase()}</span>
+            <p>{details.story.text}</p>
+            {details.story.complete?<div className="story-complete">✦ The end · Your shared adventure is saved.</div>:
+              isOpen && isActiveScene?<div className="story-choice-grid">
+                {details.story.choices.map(choice=><button key={choice.id} type="button" className="story-choice"
+                  disabled={working||!isMyChoice} onClick={()=>void choose(choice.id)}>{choice.label} <span>→</span></button>)}
+                {!isMyChoice && <p className="community-hint">Waiting for your partner to choose the next chapter.</p>}
+              </div>:null}
+          </div>}
+          <div className="section-title session-heading"><h2>{details.story?"Story choices":"Story turns"}</h2><span>{details.turns.length}{details.story?" DECISIONS":"/80 TURNS"}</span></div>
           <div className="game-turns" aria-label="Game turns">
             {!details.turns.length && <div className="empty-inner">Your story is ready. Make the opening move.</div>}
             {details.turns.map(t=><div key={t.id} className={"game-turn "+(t.actor_id===meId?"own":"")}>
               <div className="game-turn-header"><strong>@{t.actor_handle}</strong><small>{new Date(t.created_at).toLocaleString("en-GB")}</small></div>
-              <p>{t.content}</p>
+              <p>{details.story?"↳ "+t.content:t.content}</p>
             </div>)}
           </div>
-          {isOpen && isActiveScene && <form className="game-turn-form" onSubmit={e=>void submitTurn(e)}>
+          {isOpen && isActiveScene && !details.story && <form className="game-turn-form" onSubmit={e=>void submitTurn(e)}>
             <label>YOUR MOVE<textarea aria-label="Your game move" rows={3} maxLength={1200} placeholder="Describe what you do next, ask a question, set a challenge…" value={move} onChange={e=>setMove(e.target.value)}/></label>
             <button className="btn btn-red" disabled={working||!move.trim()} type="submit">Post move ↗</button>
           </form>}
