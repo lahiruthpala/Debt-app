@@ -428,7 +428,7 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
             aria-label={"Read "+currentClause.title}
             checked={confirmedClauses.includes(currentClause.key)}
             onChange={event=>setConfirmedClauses(current=>{
-              return event.target.checked?[...new Set([...current,currentClause.key])]:
+              return event.target.checked?Array.from(new Set([...current,currentClause.key])):
                 current.filter(key=>key!==currentClause.key)
             })}/>
             <span>I have read this clause</span></label>

@@ -138,7 +138,7 @@ export async function GET(req:Request){
       if(view==="queue"){
         role(actor,"dom")
         const proofs=await db.query(
-          "SELECT p.id,'proof' AS kind,p.kind AS subtype,p.created_at,p.note,"+
+          "SELECT p.id,'proof' AS kind,p.kind AS subtype,p.created_at,p.note,p.content_type,"+
           "u.handle AS member_handle,p.scene_id,p.ritual_occurrence_id "+
           "FROM proof_submissions p JOIN profiles u ON u.id=p.submitter_id "+
           "WHERE p.scene_id=$1 AND p.status='pending' AND p.deleted_at IS NULL "+

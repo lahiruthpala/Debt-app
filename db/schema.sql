@@ -595,7 +595,8 @@ CREATE TRIGGER ops_notify_occurrences AFTER UPDATE ON scene_ritual_occurrences F
 DROP TRIGGER IF EXISTS ops_notify_redemptions ON scene_reward_redemptions;
 CREATE TRIGGER ops_notify_redemptions AFTER INSERT OR UPDATE ON scene_reward_redemptions FOR EACH ROW EXECUTE FUNCTION ops_notify_existing_events();
 
-CREATE OR REPLACE FUNCTION ops_award_completed_events() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION ops_award_completed_events() RETURNS trigger LANGUAGE plpgsql AS $
+DECLARE turn_count integer;
 BEGIN
  -- Use distinct table branches: record fields differ and SQL boolean expressions
  -- do not guarantee short-circuit evaluation on PostgreSQL record variables.
@@ -626,8 +627,8 @@ BEGIN
    IF NEW.state='finished' AND OLD.state IS DISTINCT FROM NEW.state THEN
      -- A zero-turn story is not a completed activity. Cap awardable stories
      -- at two per participant and scene per UTC day to prevent points farming.
-     IF (SELECT count(*) FROM community_game_turns WHERE session_id=NEW.id)>=
-        CASE WHEN NEW.official_key IS NOT NULL THEN 3 ELSE 2 END THEN
+     SELECT count(*)::int INTO turn_count FROM community_game_turns WHERE session_id=NEW.id;
+     IF turn_count >= (CASE WHEN NEW.official_key IS NOT NULL THEN 3 ELSE 2 END) THEN
        INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
        SELECT gen_random_uuid(),NEW.scene_id,p.id,25,'story',NEW.id::text
        FROM scenes s JOIN connections c ON c.id=s.connection_id
