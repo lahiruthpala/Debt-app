@@ -597,35 +597,55 @@ CREATE TRIGGER ops_notify_redemptions AFTER INSERT OR UPDATE ON scene_reward_red
 
 CREATE OR REPLACE FUNCTION ops_award_completed_events() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
- IF TG_TABLE_NAME='proof_submissions' AND NEW.status='approved' AND OLD.status IS DISTINCT FROM NEW.status THEN
-   IF NEW.kind IN('task','challenge','ritual','lock') THEN
+ -- Use distinct table branches: record fields differ and SQL boolean expressions
+ -- do not guarantee short-circuit evaluation on PostgreSQL record variables.
+ IF TG_TABLE_NAME='proof_submissions' THEN
+   IF NEW.status='approved' AND OLD.status IS DISTINCT FROM NEW.status THEN
+     IF NEW.kind IN('task','challenge','ritual','lock') THEN
+       INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
+       VALUES(gen_random_uuid(),NEW.scene_id,NEW.submitter_id,10,'verified-proof',NEW.id::text)
+       ON CONFLICT(user_id,source,source_id) DO NOTHING;
+     END IF;
+   END IF;
+ ELSIF TG_TABLE_NAME='contract_task_claims' THEN
+   IF NEW.state='approved' AND OLD.state IS DISTINCT FROM NEW.state THEN
      INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
-     VALUES(gen_random_uuid(),NEW.scene_id,NEW.submitter_id,10,'verified-proof',NEW.id::text)
+     VALUES(gen_random_uuid(),NEW.scene_id,NEW.requested_by,40,'verified-task',NEW.id::text)
      ON CONFLICT(user_id,source,source_id) DO NOTHING;
    END IF;
- ELSIF TG_TABLE_NAME='contract_task_claims' AND NEW.state='approved' AND OLD.state IS DISTINCT FROM NEW.state THEN
-   INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
-   VALUES(gen_random_uuid(),NEW.scene_id,NEW.requested_by,40,'verified-task',NEW.id::text)
-   ON CONFLICT(user_id,source,source_id) DO NOTHING;
- ELSIF TG_TABLE_NAME='challenges' AND NEW.state='completed' AND OLD.state IS DISTINCT FROM NEW.state THEN
-   INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
-   SELECT gen_random_uuid(),NEW.scene_id,p.id,30,'challenge',NEW.id::text
-   FROM scenes s JOIN connections c ON c.id=s.connection_id
-   JOIN profiles p ON p.id IN(c.sender_id,c.recipient_id)
-   WHERE s.id=NEW.scene_id AND p.role='sub'
-   ON CONFLICT(user_id,source,source_id) DO NOTHING;
- ELSIF TG_TABLE_NAME='community_game_sessions' AND NEW.state='finished' AND OLD.state IS DISTINCT FROM NEW.state THEN
-   INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
-   SELECT gen_random_uuid(),NEW.scene_id,p.id,25,'story',NEW.id::text
-   FROM scenes s JOIN connections c ON c.id=s.connection_id
-   JOIN profiles p ON p.id IN(c.sender_id,c.recipient_id)
-   WHERE s.id=NEW.scene_id AND c.state='active'
-   ON CONFLICT(user_id,source,source_id) DO NOTHING;
- ELSIF TG_TABLE_NAME='scene_ritual_occurrences' AND NEW.status='approved' AND OLD.status IS DISTINCT FROM NEW.status THEN
-   INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
-   SELECT gen_random_uuid(),NEW.scene_id,NEW.submitted_by,r.points,'ritual',NEW.id::text
-   FROM scene_rituals r WHERE r.id=NEW.ritual_id AND r.points>0 AND NEW.submitted_by IS NOT NULL
-   ON CONFLICT(user_id,source,source_id) DO NOTHING;
+ ELSIF TG_TABLE_NAME='challenges' THEN
+   IF NEW.state='completed' AND OLD.state IS DISTINCT FROM NEW.state THEN
+     INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
+     SELECT gen_random_uuid(),NEW.scene_id,p.id,30,'challenge',NEW.id::text
+     FROM scenes s JOIN connections c ON c.id=s.connection_id
+     JOIN profiles p ON p.id IN(c.sender_id,c.recipient_id)
+     WHERE s.id=NEW.scene_id AND p.role='sub'
+     ON CONFLICT(user_id,source,source_id) DO NOTHING;
+   END IF;
+ ELSIF TG_TABLE_NAME='community_game_sessions' THEN
+   IF NEW.state='finished' AND OLD.state IS DISTINCT FROM NEW.state THEN
+     -- A zero-turn story is not a completed activity. Cap awardable stories
+     -- at two per participant and scene per UTC day to prevent points farming.
+     IF (SELECT count(*) FROM community_game_turns WHERE session_id=NEW.id)>=
+        CASE WHEN NEW.official_key IS NOT NULL THEN 3 ELSE 2 END THEN
+       INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
+       SELECT gen_random_uuid(),NEW.scene_id,p.id,25,'story',NEW.id::text
+       FROM scenes s JOIN connections c ON c.id=s.connection_id
+       JOIN profiles p ON p.id IN(c.sender_id,c.recipient_id)
+       WHERE s.id=NEW.scene_id AND c.state='active'
+         AND (SELECT count(*) FROM scene_point_events e
+           WHERE e.scene_id=NEW.scene_id AND e.user_id=p.id AND e.source='story'
+             AND e.created_at>=date_trunc('day',now()))<2
+       ON CONFLICT(user_id,source,source_id) DO NOTHING;
+     END IF;
+   END IF;
+ ELSIF TG_TABLE_NAME='scene_ritual_occurrences' THEN
+   IF NEW.status='approved' AND OLD.status IS DISTINCT FROM NEW.status THEN
+     INSERT INTO scene_point_events(id,scene_id,user_id,points,source,source_id)
+     SELECT gen_random_uuid(),NEW.scene_id,NEW.submitted_by,r.points,'ritual',NEW.id::text
+     FROM scene_rituals r WHERE r.id=NEW.ritual_id AND r.points>0 AND NEW.submitted_by IS NOT NULL
+     ON CONFLICT(user_id,source,source_id) DO NOTHING;
+   END IF;
  END IF;
  RETURN NEW;
 END $$;

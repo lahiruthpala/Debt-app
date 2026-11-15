@@ -970,3 +970,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .ops-audit-json{max-height:240px;max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.72rem;color:#eac4d6}
 @media(max-width:1050px){.ops-split{grid-template-columns:1fr}}
 @media(max-width:650px){.ops-hero-mark{display:none}.ops-tabs button{min-width:110px}.ops-review-row{grid-template-columns:22px 1fr}.ops-review-row .person-actions{grid-column:2}.ops-top-controls{width:100%;justify-content:space-between}.notification-panel{left:0;right:auto}}
+
+/* Make the expanded rail usable at typical laptop heights without hiding Sign out. */
+.app-rail{overflow-y:auto;overscroll-behavior:contain}
+.app-rail .brand{margin-bottom:16px}
+.app-rail .rail-link{padding:10px 12px}
+.app-rail .rail-legal{padding:12px 11px}
+.app-rail .rail-bottom{flex-shrink:0}
