@@ -36,6 +36,38 @@
 
 This is roleplay software, not a financial service. It does **not** create an enforceable debt or legal agreement.
 
+
+## Scene Platform v3: contracts + games + stories in one experience
+
+This release is additive. Existing agreements, public story games, lock status records, the Proof Center and fictional payments continue through their existing endpoints.
+
+- **Shared event stream:** `scene_events` captures server-authenticated ledger events, contract claims, private proof status, story turns, points and rituals. New narratives, task steps, chat and consent actions join the same per-scene stream. Events include minimal summaries, not private proof/chat content. The capability registry in `lib/scene-platform.ts` deliberately has no direct ledger-write capability.
+- **Branching Story Builder:** Story games → Branching story builder. Authors create up to 24 linked chapters, conditional choices, flags, bounded game-point awards and optional task proposals. Published playbooks are immutable snapshots **per approved session**. The other partner must accept before choices begin. Participants alternate moves, and anyone can stop the story.
+- **Advanced tasks:** Partner space → Advanced tasks. Up to eight ordered steps with optional timers and private text reports. Tasks are proposed and accepted by different partners. A Sub submits each step; the Dom approves or returns it. Completing a task awards separate points, not fictional debt credits. Either the proposing participant or the Sub can cancel without penalty.
+- **Private text chat:** Partner space → Partner chat. Authenticated scene participants only; new messages require an active scene, deletions are author-only, edits are limited to 15 minutes. A shared system-activity feed is visible alongside messages. This server-private chat is **not end-to-end encrypted**. It is not ingested by the AI service.
+- **Consent & safety:** Personal limits, optional partner-visible limits, private comfort notes, explicit AI opt-in and repeatable consent check-ins. **Stop scene** is visible globally for active scenes. It pauses scene activity immediately and finishes personal session timers without charging debt or points. Existing Sub-only consent-to-resume remains authoritative.
+- **Personal tracking:** Voluntary self-reported timers with pause/resume/end and duration history. No physical-device control, forced unlocking or hardware access restrictions.
+- **Insights & interests:** Scene activity heatmap, event counts, CSV export without private text/media and preset-only interest levels. Individual interest visibility defaults to private.
+- **Optional AI creative assistant:** Uses a configured OpenAI-compatible `chat/completions` endpoint to provide *suggestions only*. Not available until enabled in scene safety settings. Only the explicitly typed prompt is sent; never chat history, proof files, private preferences or contract balances. 15 requests/user per 24 hours. No AI-invoked scene mutations.
+- **Installable PWA:** Public manifest and offline fallback, plus an opt-in device-local story draft. Private API responses, partner messages, contract data and proof images are never service-worker cached. Any agreement, game choice, ledger action or task approval still requires the server.
+- **Proof UX:** Existing private, non-explicit photo evidence upload now supports drag/drop, file previews and an enlarged review view. Payments still support PDF uploads.
+
+### Optional AI provider variables
+
+```dotenv
+SCENE_AI_BASE_URL=https://your-openai-compatible-provider.example/v1
+SCENE_AI_MODEL=your-model
+SCENE_AI_API_KEY=your-secret
+```
+
+Leaving these unset disables the AI capability. Set them only on the server. The application does not ship with a paid or default AI provider.
+
+### Verification and release safety
+
+Run `npm test`, `npm run typecheck`, `npm run build` (with PostgreSQL for migrations) and `npm run test:e2e`. The full multiplayer journey tests story approval, irreversible published-session snapshots, limited points, partner roles, task-step approval, chat privacy, consent and balance isolation.
+
+The code from external projects was not copied wholesale: their stacks, licenses and device-control assumptions do not apply to our consent-first, fictional-only product.
+
 ## Local development
 
 Requires Node.js 22+, a PostgreSQL database (e.g. Neon), and these environment variables:
