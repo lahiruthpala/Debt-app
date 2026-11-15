@@ -81,7 +81,7 @@ export default function OperationsHub({scenes,selectedSceneId,role,meId,onNotify
   const activeScenes=scenes.filter(s=>s.status==="active"&&s.connection_state==="active")
   const scene=scenes.find(s=>s.id===sceneId)
   const playing=scene?.status==="active"&&scene?.connection_state==="active"
-  const focusScene=sceneId?{sceneId}:{}
+  const focusScene:Record<string,string>=sceneId?{sceneId}:{}
   const view=tab==="dashboard"?"overview":tab==="reviews"?"queue":
     tab==="simulator"?"forecast":tab==="signatures"?"signatures":tab==="maintenance"?"":tab
 

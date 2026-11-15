@@ -196,7 +196,7 @@ export default function Dashboard() {
   const activeConnections=connections.filter(c=>c.state==="active")
   const initialRole=ownRole==="dom"?"DOM":"SUB"
   useEffect(()=>{
-    function openActivity(event:Event){
+    function openActivity(event:globalThis.Event){
       const sceneId=(event as CustomEvent<{sceneId:string}>).detail?.sceneId
       if(sceneId&&scenes.some(s=>s.id===sceneId))setSelected(sceneId)
       setTab("operations")
