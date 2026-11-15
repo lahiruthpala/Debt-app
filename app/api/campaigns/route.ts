@@ -113,7 +113,7 @@ export async function GET(req:Request){
         const tag=(url.searchParams.get("tag")||"").trim().slice(0,80)
         const {rows}=await db.query(
           "SELECT c.id,c.title,c.description,c.kind,c.category,c.tags,c.goal,c.ends_at,c.published_at,"+
-          "c.join_policy,c.visibility,p.handle AS creator_handle, "+
+          "c.join_policy,c.visibility,(c.cover_blob_path IS NOT NULL) AS has_cover,p.handle AS creator_handle, "+
           "(SELECT COALESCE(sum(amount),0)::bigint FROM campaign_contributions x WHERE x.campaign_id=c.id AND x.status='approved') AS total,"+
           "(SELECT count(*)::int FROM campaign_memberships m WHERE m.campaign_id=c.id AND m.status='active') AS members "+
           "FROM campaigns c JOIN profiles p ON p.id=c.creator_id WHERE c.status='published' AND c.visibility='public' "+
@@ -126,7 +126,7 @@ export async function GET(req:Request){
       }
       if(view==="mine"){
         const {rows}=await db.query(
-          "SELECT c.id,c.title,c.kind,c.status,c.visibility,c.goal,c.ends_at,c.creator_id,p.handle AS creator_handle,"+
+          "SELECT c.id,c.title,c.kind,c.status,c.visibility,c.goal,c.ends_at,c.creator_id,p.handle AS creator_handle,(c.cover_blob_path IS NOT NULL) AS has_cover,"+
           "m.status AS membership_status,m.anonymous,m.leaderboard_opt_in,"+
           "CASE WHEN f.follower_id IS NULL THEN false ELSE true END AS following "+
           "FROM campaigns c JOIN profiles p ON p.id=c.creator_id "+
@@ -196,7 +196,8 @@ export async function GET(req:Request){
           "WHERE m.campaign_id=$1 ORDER BY m.created_at DESC LIMIT 200",[id])
         members=rows
       }
-      return res({campaign:{...row,goal:Number(row.goal),max_per_member:Number(row.max_per_member)},
+      const {cover_blob_path,...publicRow}=row
+      return res({campaign:{...publicRow,has_cover:Boolean(cover_blob_path),goal:Number(row.goal),max_per_member:Number(row.max_per_member)},
         totals:{...totals,progress:progressPercent(totals.total,Number(c.goal))},
         isCreator,membership:m?{status:m.status,anonymous:m.anonymous,leaderboard_opt_in:m.leaderboard_opt_in,
           personal_cap:Number(m.personal_cap),accepted_version:m.accepted_version}:null,
