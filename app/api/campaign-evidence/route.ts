@@ -117,7 +117,7 @@ export async function POST(req:Request){
         "uploader_id=$1 AND created_at>now()-interval '24 hours'",[u.id])
       if(daily.rows[0].n>=12)throw new UploadError(429,"Daily upload limit reached")
     }finally{pre.release()}
-    let buffer=Buffer.from(await file.arrayBuffer()),type="image/webp"
+    let buffer:Buffer=Buffer.from(await file.arrayBuffer()),type="image/webp"
     if(isImage){
       const input=sharp(buffer,{limitInputPixels:20000000})
       const metadata=await input.metadata().catch(()=>{throw new UploadError(400,"Unreadable image")})
