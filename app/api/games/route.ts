@@ -3,6 +3,7 @@ import type { PoolClient } from "pg"
 import { z } from "zod"
 import { getAuth } from "@/lib/auth"
 import { getPool } from "@/lib/db"
+import { findOfficialStoryGames, officialStoryGameById, officialStoryGameByKey, storyProgress } from "@/lib/story-games"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -79,7 +80,7 @@ async function sessionFor(db:PoolClient,id:string,actorId:string) {
     [id,actorId]
   )
   if (!rows.length) throw new GameError(404,"Game session not found")
-  return rows[0] as { id:string;scene_id:string;state:string;scene_status:string;connection_state:string }
+  return rows[0] as { id:string;scene_id:string;state:string;scene_status:string;connection_state:string;official_key:string|null }
 }
 export async function GET(req:Request) {
   try {
@@ -102,7 +103,19 @@ export async function GET(req:Request) {
         "FROM community_games g JOIN profiles p ON p.id=g.author_id "+
         "WHERE g.author_id=$1 ORDER BY g.updated_at DESC LIMIT 50", [actorId]
       )
-      return respond({games:games.rows,mine:mine.rows})
+      const official = findOfficialStoryGames(q)
+      const { rows: counts } = await getPool().query<{official_key:string;play_count:number}>(
+        "SELECT official_key,count(*)::int AS play_count FROM community_game_sessions "+
+        "WHERE official_key IS NOT NULL GROUP BY official_key"
+      )
+      const countByKey = new Map(counts.map(row => [row.official_key,row.play_count]))
+      const curated = official.map(game => ({
+        id:game.id,author_id:null,author_handle:"Debt Studio",title:game.title,
+        summary:game.summary,category:game.category,rules:game.rules,
+        opening_prompt:game.opening_prompt,published:true,is_official:true,
+        play_count:countByKey.get(game.key) || 0,
+      }))
+      return respond({games:[...curated,...games.rows.map(game => ({...game,is_official:false}))],mine:mine.rows})
     }
     if (view==="sessions") {
       const sceneId=parse(uuid,url.searchParams.get("sceneId"))
@@ -127,11 +140,19 @@ export async function GET(req:Request) {
       )
       if (!rows.length) throw new GameError(404,"Game session not found")
       const turns=await getPool().query(
-        "SELECT t.id,t.content,t.created_at,p.handle AS actor_handle,t.actor_id "+
+        "SELECT t.id,t.content,t.created_at,p.handle AS actor_handle,t.actor_id,t.official_node_id,t.official_choice_id "+
         "FROM community_game_turns t JOIN profiles p ON p.id=t.actor_id "+
         "WHERE t.session_id=$1 ORDER BY t.created_at,t.id LIMIT 80", [id]
       )
-      return respond({session:rows[0],turns:turns.rows})
+      const session = rows[0] as {official_key:string|null}
+      let story = null
+      if (session.official_key) {
+        const game = officialStoryGameByKey(session.official_key)
+        if (!game) throw new GameError(409,"This story version is unavailable")
+        const progress = storyProgress(game,turns.rows)
+        story = {...progress.node,step:progress.step,complete:progress.complete}
+      }
+      return respond({session:rows[0],turns:turns.rows,story})
     }
     throw new GameError(400,"Unknown game view")
   } catch(error) { return fail(error) }
@@ -192,7 +213,7 @@ export async function POST(req:Request) {
       if (!rows.length) throw new GameError(404,"This published game cannot be reported")
       return respond({message:"Report recorded. Thank you for flagging this game."})
     }
-    if (!["start","turn","finish"].includes(String(action))) throw new GameError(400,"Unknown game action")
+    if (!["start","turn","choice","finish"].includes(String(action))) throw new GameError(400,"Unknown game action")
     db=await getPool().connect()
     await db.query("BEGIN")
     inTransaction=true
@@ -200,23 +221,58 @@ export async function POST(req:Request) {
       const sceneId=parse(uuid,body.sceneId)
       const gameId=parse(uuid,body.gameId)
       await playableScene(db,sceneId,actorId)
-      const {rows}=await db.query(
+      const official = officialStoryGameById(gameId)
+      const {rows} = official ? {rows:[official]} : await db.query(
         "SELECT title,rules,opening_prompt FROM community_games WHERE id=$1 AND published=true",
         [gameId]
       )
       if (!rows.length) throw new GameError(404,"Game is not published")
       const game=rows[0] as {title:string;rules:string;opening_prompt:string}
       const {rows:created}=await db.query(
-        "INSERT INTO community_game_sessions(id,game_id,scene_id,started_by,title_snapshot,rules_snapshot,prompt_snapshot) "+
-        "VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
-        [randomUUID(),gameId,sceneId,actorId,game.title,game.rules,game.opening_prompt]
+        "INSERT INTO community_game_sessions(id,game_id,official_key,scene_id,started_by,title_snapshot,rules_snapshot,prompt_snapshot) "+
+        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
+        [randomUUID(),official?null:gameId,official?.key||null,sceneId,actorId,game.title,game.rules,game.opening_prompt]
       )
       await db.query("COMMIT");inTransaction=false
       return respond({id:created[0].id,message:"Game started! Both partners can now take turns."},201)
     }
     const id=parse(uuid,body.sessionId)
     const session=await sessionFor(db,id,actorId)
+    if (action==="choice") {
+      if (!session.official_key) throw new GameError(400,"This game accepts written turns, not choices")
+      if (session.state!=="active" || session.scene_status!=="active" || session.connection_state!=="active")
+        throw new GameError(409,"This story cannot continue while the scene is paused or ended")
+      const game=officialStoryGameByKey(session.official_key)
+      if (!game) throw new GameError(409,"This story version is unavailable")
+      const choiceId=parse(z.string().regex(/^[a-z0-9-]{1,48}$/),body.choiceId)
+      const {rows:decisions}=await db.query<{
+        official_node_id:string|null;official_choice_id:string|null;actor_id:string
+      }>(
+        "SELECT official_node_id,official_choice_id,actor_id FROM community_game_turns "+
+        "WHERE session_id=$1 ORDER BY created_at,id", [id]
+      )
+      const progress=storyProgress(game,decisions)
+      if (progress.complete) throw new GameError(409,"This story has already reached its ending")
+      if (decisions.at(-1)?.actor_id===actorId)
+        throw new GameError(409,"Wait for your partner to make the next choice")
+      const choice=progress.node.choices.find(option => option.id===choiceId)
+      if (!choice) throw new GameError(409,"That choice is no longer available")
+      const next=game.nodes[choice.next]
+      await db.query(
+        "INSERT INTO community_game_turns(id,session_id,actor_id,content,official_node_id,official_choice_id) "+
+        "VALUES ($1,$2,$3,$4,$5,$6)",
+        [randomUUID(),id,actorId,choice.label,progress.node.id,choice.id]
+      )
+      if (next.choices.length===0) {
+        await db.query(
+          "UPDATE community_game_sessions SET state='finished',finished_at=now() WHERE id=$1", [id]
+        )
+      }
+      await db.query("COMMIT");inTransaction=false
+      return respond({message:next.choices.length===0?"Story complete! Your ending is saved.":"Choice saved. Your partner can continue the story."},201)
+    }
     if (action==="turn") {
+      if (session.official_key) throw new GameError(400,"Choose an on-screen option for this interactive story")
       const content=parse(text(1,1200),body.content)
       if(session.state!=="active" || session.scene_status!=="active" || session.connection_state!=="active")
         throw new GameError(409,"This game cannot accept moves while the scene is paused or ended")
