@@ -334,7 +334,7 @@ export async function POST(req:Request){
       const points=Math.max(0,Math.min(capEventPoints(step.choice.points,today.rows[0].earned),60-prior.rows[0].earned))
       await db.query("INSERT INTO narrative_turns(id,session_id,actor_id,chapter_id,choice_id,label,points_awarded) "+
         "VALUES($1,$2,$3,$4,$5,$6,$7)",[eventId,id,actor.id,step.chapter.id,step.choice.id,step.choice.label,points])
-      await db.query("UPDATE narrative_sessions SET state=$1,last_actor_id=$2,status=$3,"+
+      await db.query("UPDATE narrative_sessions SET state=$1,last_actor_id=$2,status=$3::text,"+
         "finished_at=CASE WHEN $3='finished' THEN now() ELSE NULL END WHERE id=$4",
         [JSON.stringify(step.state),actor.id,step.finished?"finished":"active",id])
       await award(db,sceneId,actor.id,"narrative",eventId,points)
@@ -445,7 +445,7 @@ export async function POST(req:Request){
         await db.query("UPDATE assignment_step_submissions SET status=$1,reviewed_by=$2,reviewed_at=now(),review_note=$3 "+
           "WHERE id=$4",[approve?"approved":"rejected",actor.id,note,submissions[0].id])
         const finished=approve&&task.next_step+1>=steps.length
-        await db.query("UPDATE scene_assignments SET status=$1,next_step=$2,step_started_at=NULL,"+
+        await db.query("UPDATE scene_assignments SET status=$1::text,next_step=$2,step_started_at=NULL,"+
           "completed_at=CASE WHEN $1='completed' THEN now() ELSE NULL END WHERE id=$3",
           [approve?(finished?"completed":"active"):"active",
           approve?task.next_step+1:task.next_step,id])
@@ -521,7 +521,7 @@ export async function POST(req:Request){
         await db.query("UPDATE scene_time_sessions SET "+
           "accumulated_seconds=accumulated_seconds+CASE WHEN status='running' THEN "+
           "GREATEST(0,EXTRACT(EPOCH FROM(now()-active_since))::int) ELSE 0 END,"+
-          "active_since=NULL,status=$1,ended_at=CASE WHEN $1='finished' THEN now() ELSE NULL END WHERE id=$2",
+          "active_since=NULL,status=$1::text,ended_at=CASE WHEN $1='finished' THEN now() ELSE NULL END WHERE id=$2",
           [action==="timer-pause"?"paused":"finished",id])
       }else if(action==="timer-resume"){
         active(scene)
