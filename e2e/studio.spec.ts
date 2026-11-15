@@ -197,7 +197,7 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     await subPage.getByLabel("Search community games").fill("The Midnight Ledger")
     await subPage.getByRole("button",{name:"Explore library"}).click()
     await subPage.getByRole("button",{name:"View game The Midnight Ledger"}).click()
-    await expect(subPage.getByText("OFFICIAL INTERACTIVE STORY",{exact:false})).toBeVisible()
+    await expect(subPage.locator(".game-inspector .eyebrow")).toContainText("OFFICIAL INTERACTIVE STORY")
     const storyBefore=(await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
     await subPage.getByRole("button",{name:/Start with your partner/}).click()
     await expect(subPage.getByRole("status")).toContainText("Game started")
