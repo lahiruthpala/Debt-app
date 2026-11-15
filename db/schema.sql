@@ -660,3 +660,252 @@ DROP TRIGGER IF EXISTS ops_points_stories ON community_game_sessions;
 CREATE TRIGGER ops_points_stories AFTER UPDATE ON community_game_sessions FOR EACH ROW EXECUTE FUNCTION ops_award_completed_events();
 DROP TRIGGER IF EXISTS ops_points_rituals ON scene_ritual_occurrences;
 CREATE TRIGGER ops_points_rituals AFTER UPDATE ON scene_ritual_occurrences FOR EACH ROW EXECUTE FUNCTION ops_award_completed_events();
+
+
+
+-- Scene Platform v3: immutable narrative snapshots, shared activity, consent-aware
+-- tasks and private chat. New tables are additive to existing contracts and games.
+CREATE TABLE IF NOT EXISTS scene_events (
+  id bigserial PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  actor_id text REFERENCES profiles(id) ON DELETE SET NULL,
+  event_type varchar(60) NOT NULL,
+  ref_id text NOT NULL,
+  summary varchar(240) NOT NULL,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(scene_id,event_type,ref_id)
+);
+CREATE INDEX IF NOT EXISTS scene_events_scene_idx ON scene_events(scene_id,id DESC);
+
+CREATE TABLE IF NOT EXISTS narrative_templates (
+  id uuid PRIMARY KEY,
+  author_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  definition jsonb NOT NULL,
+  title varchar(80) NOT NULL,
+  summary varchar(240) NOT NULL,
+  category varchar(30) NOT NULL,
+  published boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS narrative_library_idx ON narrative_templates(published,updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS narrative_sessions (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  template_id uuid REFERENCES narrative_templates(id) ON DELETE SET NULL,
+  proposed_by text NOT NULL REFERENCES profiles(id),
+  approved_by text REFERENCES profiles(id),
+  definition_snapshot jsonb NOT NULL,
+  state jsonb NOT NULL DEFAULT '{"nodeId":"start","flags":[],"decisions":0}'::jsonb,
+  status varchar(12) NOT NULL DEFAULT 'proposed'
+    CHECK(status IN('proposed','active','finished','declined','stopped')),
+  last_actor_id text REFERENCES profiles(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  finished_at timestamptz,
+  CHECK(jsonb_typeof(definition_snapshot)='object' AND jsonb_typeof(state)='object')
+);
+CREATE INDEX IF NOT EXISTS narrative_scene_idx ON narrative_sessions(scene_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS narrative_turns (
+  id uuid PRIMARY KEY,
+  session_id uuid NOT NULL REFERENCES narrative_sessions(id) ON DELETE CASCADE,
+  actor_id text NOT NULL REFERENCES profiles(id),
+  chapter_id varchar(32) NOT NULL,
+  choice_id varchar(32) NOT NULL,
+  label varchar(140) NOT NULL,
+  points_awarded smallint NOT NULL DEFAULT 0 CHECK(points_awarded BETWEEN 0 AND 10),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS narrative_turns_session_idx ON narrative_turns(session_id,created_at,id);
+
+CREATE TABLE IF NOT EXISTS scene_assignments (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  proposed_by text NOT NULL REFERENCES profiles(id),
+  accepted_by text REFERENCES profiles(id),
+  title varchar(100) NOT NULL,
+  description varchar(600) NOT NULL DEFAULT '',
+  steps jsonb NOT NULL,
+  next_step smallint NOT NULL DEFAULT 0 CHECK(next_step BETWEEN 0 AND 8),
+  status varchar(12) NOT NULL DEFAULT 'proposed'
+    CHECK(status IN('proposed','active','submitted','completed','declined','cancelled')),
+  points smallint NOT NULL CHECK(points BETWEEN 0 AND 60),
+  story_session_id uuid REFERENCES narrative_sessions(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz,
+  completed_at timestamptz,
+  CHECK(jsonb_typeof(steps)='array' AND jsonb_array_length(steps) BETWEEN 1 AND 8)
+);
+CREATE INDEX IF NOT EXISTS scene_assignments_idx ON scene_assignments(scene_id,status,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS assignment_step_submissions (
+  id uuid PRIMARY KEY,
+  assignment_id uuid NOT NULL REFERENCES scene_assignments(id) ON DELETE CASCADE,
+  step_number smallint NOT NULL CHECK(step_number BETWEEN 0 AND 7),
+  note varchar(1000) NOT NULL DEFAULT '',
+  status varchar(12) NOT NULL DEFAULT 'submitted' CHECK(status IN('submitted','approved','rejected')),
+  submitted_by text NOT NULL REFERENCES profiles(id),
+  reviewed_by text REFERENCES profiles(id),
+  submitted_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  review_note varchar(500) NOT NULL DEFAULT '',
+  UNIQUE(assignment_id,step_number)
+);
+
+CREATE TABLE IF NOT EXISTS scene_messages (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  sender_id text NOT NULL REFERENCES profiles(id),
+  body varchar(2000) NOT NULL CHECK(char_length(body) BETWEEN 1 AND 2000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  edited_at timestamptz,
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS scene_messages_idx ON scene_messages(scene_id,created_at DESC,id DESC);
+CREATE TABLE IF NOT EXISTS scene_chat_receipts (
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  user_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  last_read_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(scene_id,user_id)
+);
+
+CREATE TABLE IF NOT EXISTS scene_safety_prefs (
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  user_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  limits jsonb NOT NULL DEFAULT '[]'::jsonb,
+  share_limits boolean NOT NULL DEFAULT false,
+  ai_opt_in boolean NOT NULL DEFAULT false,
+  aftercare varchar(500) NOT NULL DEFAULT '',
+  last_checkin timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(scene_id,user_id),
+  CHECK(jsonb_typeof(limits)='array')
+);
+CREATE TABLE IF NOT EXISTS scene_safety_events (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  actor_id text NOT NULL REFERENCES profiles(id),
+  action varchar(20) NOT NULL CHECK(action IN('stop','consent-check','resume-request')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS scene_safety_events_idx ON scene_safety_events(scene_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS scene_time_sessions (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  user_id text NOT NULL REFERENCES profiles(id),
+  label varchar(90) NOT NULL,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  accumulated_seconds integer NOT NULL DEFAULT 0 CHECK(accumulated_seconds>=0),
+  active_since timestamptz,
+  status varchar(12) NOT NULL DEFAULT 'running' CHECK(status IN('running','paused','finished')),
+  ended_at timestamptz
+);
+CREATE UNIQUE INDEX IF NOT EXISTS scene_time_running_idx ON scene_time_sessions(scene_id,user_id) WHERE status IN('running','paused');
+CREATE INDEX IF NOT EXISTS scene_time_history_idx ON scene_time_sessions(scene_id,user_id,started_at DESC);
+
+CREATE TABLE IF NOT EXISTS profile_interest_levels (
+  user_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  interest varchar(100) NOT NULL,
+  level smallint NOT NULL CHECK(level BETWEEN 0 AND 4),
+  public boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(user_id,interest)
+);
+CREATE INDEX IF NOT EXISTS profile_interest_public_idx ON profile_interest_levels(interest,level) WHERE public;
+
+-- Transactionally mirror existing systems into one ordered scene stream.
+-- Individual consumer actions cannot forge these events from a browser.
+CREATE OR REPLACE FUNCTION scene_platform_mirror() RETURNS trigger LANGUAGE plpgsql AS $scene_platform$
+DECLARE sid uuid; actor text; event_key text; ref text; summary text;
+BEGIN
+  IF TG_TABLE_NAME='ledger_events' THEN
+    IF TG_OP<>'INSERT' THEN RETURN NEW; END IF;
+    sid:=NEW.scene_id; actor:=NEW.actor_id; event_key:='ledger.'||NEW.type;
+    ref:=NEW.id::text;summary:='Fictional ledger action recorded';
+  ELSIF TG_TABLE_NAME='community_game_turns' THEN
+    IF TG_OP<>'INSERT' THEN RETURN NEW; END IF;
+    SELECT scene_id INTO sid FROM community_game_sessions WHERE id=NEW.session_id;
+    actor:=NEW.actor_id;event_key:='story.turn';ref:=NEW.id::text;summary:='Shared story move';
+  ELSIF TG_TABLE_NAME='proof_submissions' THEN
+    sid:=NEW.scene_id;
+    IF TG_OP='INSERT' THEN
+      actor:=NEW.submitter_id;event_key:='proof.submitted';
+      ref:=NEW.id::text;summary:='Private proof submitted';
+    ELSIF NEW.status IS DISTINCT FROM OLD.status THEN
+      actor:=NEW.reviewer_id;event_key:='proof.'||NEW.status;
+      ref:=NEW.id::text;summary:='Private proof reviewed';
+    ELSE RETURN NEW; END IF;
+  ELSIF TG_TABLE_NAME='contract_task_claims' THEN
+    sid:=NEW.scene_id;
+    IF TG_OP='INSERT' THEN
+      actor:=NEW.requested_by;event_key:='contract-task.claimed';
+      ref:=NEW.id::text;summary:='Contract task claimed';
+    ELSIF NEW.state IS DISTINCT FROM OLD.state THEN
+      actor:=NEW.reviewed_by;event_key:='contract-task.'||NEW.state;
+      ref:=NEW.id::text;summary:='Contract task reviewed';
+    ELSE RETURN NEW; END IF;
+  ELSIF TG_TABLE_NAME='scene_ritual_occurrences' THEN
+    IF TG_OP<>'UPDATE' OR NEW.status IS NOT DISTINCT FROM OLD.status THEN RETURN NEW; END IF;
+    sid:=NEW.scene_id;actor:=COALESCE(NEW.reviewed_by,NEW.submitted_by);
+    event_key:='ritual.'||NEW.status;ref:=NEW.id::text;summary:='Ritual activity updated';
+  ELSIF TG_TABLE_NAME='scene_point_events' THEN
+    IF TG_OP<>'INSERT' THEN RETURN NEW; END IF;
+    sid:=NEW.scene_id;actor:=NEW.user_id;event_key:='points.'||NEW.source;
+    ref:=NEW.id::text;summary:='Game points updated';
+  ELSE RETURN NEW; END IF;
+  INSERT INTO scene_events(scene_id,actor_id,event_type,ref_id,summary)
+  VALUES(sid,actor,event_key,ref,summary)
+  ON CONFLICT(scene_id,event_type,ref_id) DO NOTHING;
+  RETURN NEW;
+END $scene_platform$;
+DROP TRIGGER IF EXISTS scene_mirror_ledger ON ledger_events;
+CREATE TRIGGER scene_mirror_ledger AFTER INSERT ON ledger_events FOR EACH ROW EXECUTE FUNCTION scene_platform_mirror();
+DROP TRIGGER IF EXISTS scene_mirror_game_turns ON community_game_turns;
+CREATE TRIGGER scene_mirror_game_turns AFTER INSERT ON community_game_turns FOR EACH ROW EXECUTE FUNCTION scene_platform_mirror();
+DROP TRIGGER IF EXISTS scene_mirror_proofs ON proof_submissions;
+CREATE TRIGGER scene_mirror_proofs AFTER INSERT OR UPDATE ON proof_submissions FOR EACH ROW EXECUTE FUNCTION scene_platform_mirror();
+DROP TRIGGER IF EXISTS scene_mirror_contract_tasks ON contract_task_claims;
+CREATE TRIGGER scene_mirror_contract_tasks AFTER INSERT OR UPDATE ON contract_task_claims FOR EACH ROW EXECUTE FUNCTION scene_platform_mirror();
+DROP TRIGGER IF EXISTS scene_mirror_rituals ON scene_ritual_occurrences;
+CREATE TRIGGER scene_mirror_rituals AFTER UPDATE ON scene_ritual_occurrences FOR EACH ROW EXECUTE FUNCTION scene_platform_mirror();
+DROP TRIGGER IF EXISTS scene_mirror_points ON scene_point_events;
+CREATE TRIGGER scene_mirror_points AFTER INSERT ON scene_point_events FOR EACH ROW EXECUTE FUNCTION scene_platform_mirror();
+
+-- New API operations use these triggers for notifications while retaining
+-- scene-level authorization checks in application code.
+CREATE OR REPLACE FUNCTION scene_platform_alert() RETURNS trigger LANGUAGE plpgsql AS $scene_alert$
+BEGIN
+  IF TG_TABLE_NAME='scene_messages' THEN
+    IF TG_OP='INSERT' THEN
+      INSERT INTO activity_notifications(id,user_id,scene_id,event_key,kind,title,detail)
+      SELECT gen_random_uuid(),p.id,NEW.scene_id,'message:'||NEW.id,'message',
+        'New private message','A partner sent you a new message.'
+      FROM scenes s JOIN connections c ON c.id=s.connection_id
+      JOIN profiles p ON p.id IN(c.sender_id,c.recipient_id)
+      WHERE s.id=NEW.scene_id AND c.state='active' AND p.id<>NEW.sender_id
+      ON CONFLICT(user_id,event_key) DO NOTHING;
+    END IF;
+  ELSIF TG_TABLE_NAME='scene_assignments' THEN
+    IF TG_OP='INSERT' OR (TG_OP='UPDATE' AND NEW.status IS DISTINCT FROM OLD.status) THEN
+      PERFORM ops_scene_notify(NEW.scene_id,'both','assignment:'||NEW.id||':'||NEW.status,
+        'task','Shared task updated',NEW.title);
+    END IF;
+  ELSIF TG_TABLE_NAME='narrative_sessions' THEN
+    IF TG_OP='INSERT' OR (TG_OP='UPDATE' AND NEW.status IS DISTINCT FROM OLD.status) THEN
+      PERFORM ops_scene_notify(NEW.scene_id,'both','narrative:'||NEW.id||':'||NEW.status,
+        'story','Interactive story updated',
+        LEFT(NEW.definition_snapshot->>'title',100));
+    END IF;
+  END IF;
+  RETURN NEW;
+END $scene_alert$;
+DROP TRIGGER IF EXISTS scene_platform_messages_alert ON scene_messages;
+CREATE TRIGGER scene_platform_messages_alert AFTER INSERT ON scene_messages FOR EACH ROW EXECUTE FUNCTION scene_platform_alert();
+DROP TRIGGER IF EXISTS scene_platform_task_alert ON scene_assignments;
+CREATE TRIGGER scene_platform_task_alert AFTER INSERT OR UPDATE ON scene_assignments FOR EACH ROW EXECUTE FUNCTION scene_platform_alert();
+DROP TRIGGER IF EXISTS scene_platform_story_alert ON narrative_sessions;
+CREATE TRIGGER scene_platform_story_alert AFTER INSERT OR UPDATE ON narrative_sessions FOR EACH ROW EXECUTE FUNCTION scene_platform_alert();
