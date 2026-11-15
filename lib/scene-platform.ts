@@ -18,7 +18,8 @@ const choiceSchema=z.object({
   id:slug,label:z.string().trim().min(3).max(140),next:slug,
   requiresFlag:slug.optional(),setsFlag:slug.optional(),
   points:z.number().int().min(0).max(10).default(0),
-  proposeTask:z.string().trim().max(100).default(""),
+  proposeTask:z.string().trim().max(100).refine(s=>!s||s.length>=3,
+    "Story task titles must contain at least three characters").default(""),
 }).strict()
 const nodeSchema=z.object({
   id:slug,title:z.string().trim().min(3).max(100),
