@@ -60,7 +60,7 @@ test("point effects are bounded and no financial mutation capability exists",()=
   assert.equal(capEventPoints(10,55),5)
   assert.equal(capEventPoints(5,60),0)
   assert.throws(()=>capEventPoints(-1,0))
-  assert.equal(Object.values(capabilityManifest).some(x=>x.mutates==="ledger"),false)
+  assert.equal(Object.values(capabilityManifest).map(x=>String(x.mutates)).includes("ledger"),false)
 })
 test("task steps and personal safety preferences are strongly validated",()=>{
   const task=assignmentInput.parse({title:"Creative milestone",description:"Voluntary task",
