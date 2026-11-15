@@ -4,13 +4,13 @@ import {isAllowedProofType,maxProofBytes,maxPaymentPdfBytes,paymentPdfType,type 
 
 type Feedback=(type:"pending"|"success"|"error",message:string)=>void
 type Proof={
- id:string;scene_id:string;kind:ProofKind;module_id:string|null;claim_id:string|null;
+ id:string;scene_id:string;kind:ProofKind;module_id:string|null;claim_id:string|null;ritual_occurrence_id:string|null;
  challenge_id:string|null;amount:number|null;content_type:string;lock_request_id:string|null;note:string;status:ProofStatus;created_at:string;
  reviewed_at:string|null;review_note:string|null;deleted_at:string|null;submitter_handle:string;
  reviewer_handle:string|null;submitter_id:string
 }
 const message=(error:unknown)=>error instanceof Error?error.message:"Evidence request failed"
-const titles:Record<ProofKind,string>={lock:"Lock-status proof",task:"Contract task proof",challenge:"Challenge proof",payment:"Simulated payment proof"}
+const titles:Record<ProofKind,string>={lock:"Lock-status proof",task:"Contract task proof",challenge:"Challenge proof",payment:"Simulated payment proof",ritual:"Ritual evidence"}
 function announceRefresh(){window.dispatchEvent(new Event("private-proofs-updated"))}
 async function apiProof(input:Record<string,unknown>,method:"PATCH"|"DELETE"){
  const res=await fetch("/api/proofs",{
@@ -22,8 +22,8 @@ async function apiProof(input:Record<string,unknown>,method:"PATCH"|"DELETE"){
 }
 
 /** Evidence is opt-in and non-explicit. No photo can override consent or stop a scene ending. */
-export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,onAmountChange,hideNote=false,onNotify,onUploaded}:{
- sceneId:string;kind:ProofKind;moduleId?:string;claimId?:string;challengeId?:string;amount?:number;
+export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,ritualOccurrenceId,amount,onAmountChange,hideNote=false,onNotify,onUploaded}:{
+ sceneId:string;kind:ProofKind;moduleId?:string;claimId?:string;challengeId?:string;ritualOccurrenceId?:string;amount?:number;
  onAmountChange?:(amount:number)=>void;hideNote?:boolean;onNotify:Feedback;onUploaded?:()=>Promise<void>|void
 }){
  const [file,setFile]=useState<File|null>(null)
@@ -55,6 +55,7 @@ export function ProofUploader({sceneId,kind,moduleId,claimId,challengeId,amount,
      if(moduleId)payload.set("moduleId",moduleId)
      if(claimId)payload.set("claimId",claimId)
      if(challengeId)payload.set("challengeId",challengeId)
+    if(ritualOccurrenceId)payload.set("ritualOccurrenceId",ritualOccurrenceId)
      if(amount!==undefined)payload.set("amount",String(amount))
      const response=await fetch("/api/proofs",{method:"POST",body:payload})
      const data=await response.json().catch(()=>({}))

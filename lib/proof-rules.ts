@@ -1,4 +1,4 @@
-export type ProofKind="lock"|"task"|"challenge"|"payment"
+export type ProofKind="lock"|"task"|"challenge"|"payment"|"ritual"
 export type ProofStatus="pending"|"approved"|"rejected"
 export const maxProofBytes=3_000_000
 // Stay below the Vercel request-body limit, including multipart overhead.
@@ -10,7 +10,7 @@ export const allowedImageTypes=["image/jpeg","image/png","image/webp"] as const
 export function isAllowedImageType(value:string):boolean {
   return (allowedImageTypes as readonly string[]).includes(value)
 }
-/** PDFs are accepted for payment evidence only, not lock/task/challenge proofs. */
+/** PDFs are accepted for payment evidence only, not lock/task/challenge/ritual proofs. */
 export function isAllowedProofType(kind:ProofKind,mime:string):boolean {
   return isAllowedImageType(mime)||(kind==="payment"&&mime===paymentPdfType)
 }
