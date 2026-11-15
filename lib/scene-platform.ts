@@ -1,4 +1,5 @@
 import {z} from "zod"
+import {randomInt} from "node:crypto"
 
 /**
  * Deterministic scene capabilities. No user-authored scripts and no automatic
@@ -17,6 +18,8 @@ export const slug=z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/)
 const choiceSchema=z.object({
   id:slug,label:z.string().trim().min(3).max(140),next:slug,
   requiresFlag:slug.optional(),setsFlag:slug.optional(),
+  requiresItem:slug.optional(),grantItem:slug.optional(),consumeItem:slug.optional(),
+  randomTargets:z.array(z.object({next:slug,weight:z.number().int().min(1).max(100)}).strict()).min(2).max(5).optional(),
   points:z.number().int().min(0).max(10).default(0),
   proposeTask:z.string().trim().max(100).refine(s=>!s||s.length>=3,
     "Story task titles must contain at least three characters").default(""),
@@ -40,6 +43,9 @@ export const narrativeSchema=z.object({
     const ids=new Set<string>()
     for(const choice of node.choices){
       if(!nodes.has(choice.next))ctx.addIssue({code:"custom",message:"Choice "+choice.id+" points to a missing chapter"})
+      for(const target of choice.randomTargets||[]){
+        if(!nodes.has(target.next))ctx.addIssue({code:"custom",message:"Random encounter points to a missing chapter"})
+      }
       if(ids.has(choice.id))ctx.addIssue({code:"custom",message:"Choice IDs must be unique within a chapter"})
       ids.add(choice.id);choices++
     }
@@ -53,26 +59,43 @@ export const narrativeSchema=z.object({
     const next=todo.pop()!
     if(seen.has(next))continue
     seen.add(next)
-    for(const choice of nodes.get(next)?.choices||[])if(!seen.has(choice.next))todo.push(choice.next)
+    for(const choice of nodes.get(next)?.choices||[]){
+      if(!seen.has(choice.next))todo.push(choice.next)
+      for(const target of choice.randomTargets||[])if(!seen.has(target.next))todo.push(target.next)
+    }
   }
   if(seen.size!==nodes.size)ctx.addIssue({code:"custom",message:"Every chapter must be reachable from start"})
 })
 export type Narrative=z.infer<typeof narrativeSchema>
-export type NarrativeState={nodeId:string;flags:string[];decisions:number}
-export const initialNarrativeState: NarrativeState={nodeId:"start",flags:[],decisions:0}
+export type NarrativeState={nodeId:string;flags:string[];items:string[];decisions:number}
+export const initialNarrativeState: NarrativeState={nodeId:"start",flags:[],items:[],decisions:0}
 
-export function narrativeStep(definition:Narrative,state:NarrativeState,choiceId:string){
+export function narrativeStep(definition:Narrative,state:NarrativeState,choiceId:string,roll?:number){
   const chapter=definition.nodes.find(node=>node.id===state.nodeId)
   if(!chapter)throw Error("Story chapter is missing")
   if(state.decisions>=60)throw Error("The story has reached its 60-choice safety limit")
-  const choice=chapter.choices.find(c=>c.id===choiceId&&(!c.requiresFlag||state.flags.includes(c.requiresFlag)))
+  const choice=permittedChoices(definition,state).find(c=>c.id===choiceId)
   if(!choice)throw Error("This choice is unavailable")
-  const target=definition.nodes.find(node=>node.id===choice.next)
+  let next=choice.next
+  if(choice.randomTargets?.length){
+    const total=choice.randomTargets.reduce((sum,item)=>sum+item.weight,0)
+    let draw=roll??randomInt(total)
+    if(!Number.isInteger(draw)||draw<0||draw>=total)throw Error("Invalid encounter roll")
+    for(const item of choice.randomTargets){
+      if(draw<item.weight){next=item.next;break}
+      draw-=item.weight
+    }
+  }
+  const target=definition.nodes.find(node=>node.id===next)
   if(!target)throw Error("Next chapter is missing")
+  const currentItems=Array.isArray(state.items)?state.items:[]
+  const withoutConsumed=choice.consumeItem?currentItems.filter(item=>item!==choice.consumeItem):currentItems
+  const items=choice.grantItem&&!withoutConsumed.includes(choice.grantItem)&&withoutConsumed.length<12?
+    [...withoutConsumed,choice.grantItem]:withoutConsumed
   return {
     state:{nodeId:target.id,flags:choice.setsFlag?Array.from(new Set([...state.flags,choice.setsFlag])):state.flags,
-      decisions:state.decisions+1},
-    choice,chapter,finished:target.choices.length===0,
+      items,decisions:state.decisions+1},
+    choice,chapter,targetId:target.id,finished:target.choices.length===0,
   }
 }
 
@@ -105,7 +128,10 @@ export const safetyInput=z.object({
 
 export function permittedChoices(definition:Narrative,state:NarrativeState){
   const node=definition.nodes.find(n=>n.id===state.nodeId)
-  return node?node.choices.filter(c=>!c.requiresFlag||state.flags.includes(c.requiresFlag)):[]
+  return node?node.choices.filter(c=>
+    (!c.requiresFlag||state.flags.includes(c.requiresFlag))&&
+    (!c.requiresItem||state.items?.includes(c.requiresItem))&&
+    (!c.consumeItem||state.items?.includes(c.consumeItem))):[]
 }
 export function capEventPoints(points:number,earnedToday:number){
   if(!Number.isInteger(points)||points<0||points>10)throw Error("Invalid points effect")
