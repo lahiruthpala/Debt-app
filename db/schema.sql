@@ -959,3 +959,222 @@ END $assignment_event$;
 DROP TRIGGER IF EXISTS scene_assignment_evidence_events ON assignment_step_evidence;
 CREATE TRIGGER scene_assignment_evidence_events AFTER INSERT OR UPDATE ON assignment_step_evidence
   FOR EACH ROW EXECUTE FUNCTION scene_assignment_evidence_event();
+
+
+-- Campaigns: independent one-to-many fictional, consent-first community spaces.
+-- Deliberately separate from connections/scenes and their private debt ledger.
+CREATE TABLE IF NOT EXISTS campaigns (
+  id uuid PRIMARY KEY,
+  creator_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  title varchar(100) NOT NULL,
+  description varchar(2000) NOT NULL,
+  rules varchar(5000) NOT NULL,
+  kind varchar(20) NOT NULL CHECK(kind IN ('tribute','goal','challenge','competition','event')),
+  category varchar(40) NOT NULL,
+  visibility varchar(12) NOT NULL CHECK(visibility IN ('public','unlisted','restricted')),
+  join_policy varchar(12) NOT NULL CHECK(join_policy IN ('open','approval','invite')),
+  status varchar(12) NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','published','paused','closed')),
+  tags jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(tags)='array'),
+  milestones jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(milestones)='array'),
+  starts_at timestamptz,
+  ends_at timestamptz,
+  goal bigint NOT NULL DEFAULT 0 CHECK(goal BETWEEN 0 AND 100000000),
+  min_contribution integer NOT NULL DEFAULT 1 CHECK(min_contribution BETWEEN 1 AND 1000000),
+  max_contribution integer NOT NULL DEFAULT 10000 CHECK(max_contribution BETWEEN 1 AND 1000000),
+  max_per_member bigint NOT NULL DEFAULT 1000000 CHECK(max_per_member BETWEEN 1 AND 100000000),
+  member_limit integer NOT NULL DEFAULT 1000 CHECK(member_limit BETWEEN 1 AND 10000),
+  require_contribution_proof boolean NOT NULL DEFAULT false,
+  allow_anonymous boolean NOT NULL DEFAULT true,
+  leaderboard_enabled boolean NOT NULL DEFAULT false,
+  allow_comments boolean NOT NULL DEFAULT true,
+  terms_version integer NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  published_at timestamptz,
+  closed_at timestamptz,
+  CHECK(ends_at IS NULL OR starts_at IS NULL OR ends_at>starts_at),
+  CHECK(max_contribution >= min_contribution),
+  CHECK(max_per_member >= min_contribution)
+);
+CREATE INDEX IF NOT EXISTS campaigns_discover_idx ON campaigns(status,visibility,published_at DESC);
+CREATE INDEX IF NOT EXISTS campaigns_creator_idx ON campaigns(creator_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS campaigns_tags_idx ON campaigns USING gin(tags);
+
+CREATE TABLE IF NOT EXISTS campaign_memberships (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  status varchar(12) NOT NULL CHECK(status IN ('invited','pending','active','left','removed')),
+  accepted_version integer NOT NULL,
+  anonymous boolean NOT NULL DEFAULT false,
+  leaderboard_opt_in boolean NOT NULL DEFAULT false,
+  personal_cap bigint NOT NULL DEFAULT 1000000 CHECK(personal_cap BETWEEN 1 AND 100000000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  joined_at timestamptz,
+  left_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(campaign_id,member_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_memberships_member_idx ON campaign_memberships(member_id,status);
+CREATE INDEX IF NOT EXISTS campaign_memberships_queue_idx ON campaign_memberships(campaign_id,status,created_at);
+
+CREATE TABLE IF NOT EXISTS campaign_contributions (
+  id uuid PRIMARY KEY,
+  request_id uuid NOT NULL,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  amount integer NOT NULL CHECK(amount BETWEEN 1 AND 1000000),
+  note varchar(400) NOT NULL DEFAULT '',
+  status varchar(12) NOT NULL CHECK(status IN ('pending','approved','rejected')),
+  reviewed_by text REFERENCES profiles(id),
+  review_note varchar(500) NOT NULL DEFAULT '',
+  reviewed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(member_id,request_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_contributions_campaign_idx ON campaign_contributions(campaign_id,status,created_at DESC);
+CREATE INDEX IF NOT EXISTS campaign_contributions_member_idx ON campaign_contributions(member_id,campaign_id,status);
+
+CREATE TABLE IF NOT EXISTS campaign_activities (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  kind varchar(12) NOT NULL CHECK(kind IN ('task','game','poll')),
+  config jsonb NOT NULL,
+  state varchar(12) NOT NULL DEFAULT 'active' CHECK(state IN ('active','disabled')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS campaign_activities_idx ON campaign_activities(campaign_id,state);
+
+CREATE TABLE IF NOT EXISTS campaign_task_claims (
+  id uuid PRIMARY KEY,
+  activity_id uuid NOT NULL REFERENCES campaign_activities(id) ON DELETE CASCADE,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  note varchar(1000) NOT NULL,
+  status varchar(12) NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+  points integer NOT NULL CHECK(points BETWEEN 0 AND 1000),
+  reviewer_id text REFERENCES profiles(id),
+  review_note varchar(500) NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS campaign_tasks_queue_idx ON campaign_task_claims(campaign_id,status,created_at DESC);
+CREATE INDEX IF NOT EXISTS campaign_tasks_member_idx ON campaign_task_claims(activity_id,member_id,status);
+
+CREATE TABLE IF NOT EXISTS campaign_game_plays (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  activity_id uuid NOT NULL REFERENCES campaign_activities(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  outcome jsonb NOT NULL,
+  points integer NOT NULL CHECK(points BETWEEN 0 AND 500),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS campaign_game_cooldown_idx ON campaign_game_plays(activity_id,member_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS campaign_votes (
+  activity_id uuid NOT NULL REFERENCES campaign_activities(id) ON DELETE CASCADE,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  choice_index smallint NOT NULL CHECK(choice_index BETWEEN 0 AND 7),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(activity_id,member_id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_point_events (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  points integer NOT NULL CHECK(points BETWEEN 0 AND 1000),
+  source_type varchar(20) NOT NULL,
+  source_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(source_type,source_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_points_member_idx ON campaign_point_events(campaign_id,member_id);
+
+CREATE TABLE IF NOT EXISTS campaign_posts (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  author_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  kind varchar(12) NOT NULL CHECK(kind IN ('update','comment')),
+  parent_id uuid REFERENCES campaign_posts(id) ON DELETE CASCADE,
+  content varchar(2000) NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS campaign_posts_feed_idx ON campaign_posts(campaign_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS campaign_reactions (
+  post_id uuid NOT NULL REFERENCES campaign_posts(id) ON DELETE CASCADE,
+  member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  emoji varchar(12) NOT NULL CHECK(emoji IN ('heart','clap','star')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(post_id,member_id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_follows (
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  follower_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(campaign_id,follower_id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_evidence (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  uploader_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  contribution_id uuid REFERENCES campaign_contributions(id) ON DELETE CASCADE,
+  claim_id uuid REFERENCES campaign_task_claims(id) ON DELETE CASCADE,
+  blob_path text,
+  bytes integer NOT NULL CHECK(bytes BETWEEN 1 AND 4000000),
+  content_type varchar(24) NOT NULL CHECK(content_type IN ('image/webp','application/pdf')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz,
+  CHECK ((contribution_id IS NOT NULL)::integer+(claim_id IS NOT NULL)::integer=1)
+);
+CREATE INDEX IF NOT EXISTS campaign_evidence_contrib_idx ON campaign_evidence(contribution_id,deleted_at);
+CREATE INDEX IF NOT EXISTS campaign_evidence_claim_idx ON campaign_evidence(claim_id,deleted_at);
+
+CREATE TABLE IF NOT EXISTS campaign_events (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  actor_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  event_type varchar(40) NOT NULL,
+  subject_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS campaign_events_campaign_idx ON campaign_events(campaign_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS campaign_notifications (
+  id uuid PRIMARY KEY,
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  recipient_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  kind varchar(20) NOT NULL,
+  title varchar(140) NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  read_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS campaign_notifications_recipient_idx ON campaign_notifications(recipient_id,read_at,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS campaign_reports (
+  campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  reporter_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  reason varchar(500) NOT NULL CHECK(char_length(reason)>=10),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(campaign_id,reporter_id)
+);
+
+-- Optional image is delivered through an authenticated private Blob proxy.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS cover_blob_path text;
+
+
+-- Following a creator never establishes a private connection or membership.
+CREATE TABLE IF NOT EXISTS campaign_creator_follows (
+  creator_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  follower_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(creator_id,follower_id),
+  CHECK(creator_id<>follower_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_creator_follows_follower_idx ON campaign_creator_follows(follower_id);

@@ -59,7 +59,8 @@ export const showcaseSchema=z.object({
 export type ShowcaseSettings=z.infer<typeof showcaseSchema>
 export type ShowcaseStats={
   acceptedAgreements:number;gameActions:number;tasksApproved:number;
-  proofsApproved:number;proofsReviewed:number;publishedTemplates:number
+  proofsApproved:number;proofsReviewed:number;publishedTemplates:number;
+  campaignsCreated:number;campaignsJoined:number;campaignContributions:number;campaignTasksApproved:number
 }
 export type ShowcaseBadge={id:string;title:string;description:string}
 export function earnedBadges(stats:ShowcaseStats):ShowcaseBadge[]{
@@ -71,6 +72,10 @@ export function earnedBadges(stats:ShowcaseStats):ShowcaseBadge[]{
   if(stats.tasksApproved>=1)badges.push({id:"verified-task",title:"Task Achiever",description:"Had at least one submitted task approved"})
   if(stats.proofsApproved>=1)badges.push({id:"verified-evidence",title:"Evidence Contributor",description:"Had a proof submission approved"})
   if(stats.proofsReviewed>=1)badges.push({id:"trusted-reviewer",title:"Trusted Reviewer",description:"Approved at least one partner proof"})
+  if(stats.campaignsCreated>=1)badges.push({id:"campaign-creator",title:"Campaign Creator",description:"Published a community campaign"})
+  if(stats.campaignsJoined>=1)badges.push({id:"community-member",title:"Community Member",description:"Voluntarily joined a campaign"})
+  if(stats.campaignContributions>=1)badges.push({id:"fictional-contributor",title:"Fictional Contributor",description:"Made an approved fictional contribution"})
+  if(stats.campaignTasksApproved>=1)badges.push({id:"campaign-task",title:"Community Achiever",description:"Had a campaign task approved"})
   if(stats.publishedTemplates>=1)badges.push({id:"creator",title:"Contract Creator",description:"Published a contract template"})
   return badges
 }

@@ -29,13 +29,17 @@ test("member labels come from a fixed categorized catalog",()=>{
 })
 test("achievement titles derive only from recorded stats, not a self-reported profile",()=>{
   const empty:ShowcaseStats={acceptedAgreements:0,gameActions:0,tasksApproved:0,
-    proofsApproved:0,proofsReviewed:0,publishedTemplates:0}
+    proofsApproved:0,proofsReviewed:0,publishedTemplates:0,
+    campaignsCreated:0,campaignsJoined:0,campaignContributions:0,campaignTasksApproved:0}
   assert.deepEqual(earnedBadges(empty),[])
   const earned=earnedBadges({...empty,acceptedAgreements:3,gameActions:10,tasksApproved:1,
     proofsApproved:1,proofsReviewed:1,publishedTemplates:1}).map(x=>x.id)
   assert.ok(earned.includes("first-agreement"))
   assert.ok(earned.includes("active-player"))
   assert.ok(earned.includes("creator"))
+  const campaigns=earnedBadges({...empty,campaignsCreated:1,campaignsJoined:2,campaignContributions:1,campaignTasksApproved:1}).map(x=>x.id)
+  assert.ok(campaigns.includes("campaign-creator"))
+  assert.ok(campaigns.includes("fictional-contributor"))
   assert.equal(activityLabel("dice"),"Played a dice game")
   assert.equal(activityLabel("unknown"),"Participated in a contract activity")
 })

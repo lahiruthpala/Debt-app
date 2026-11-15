@@ -5,6 +5,7 @@ import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
+import CampaignHub from "./campaign-hub"
 import OperationsHub from "./operations-hub"
 import PartnerSpace from "./partner-space"
 import NotificationCenter from "./notification-center"
@@ -21,7 +22,7 @@ type Scene = { id:string; connection_id:string; status:string; connection_state:
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
 type Details = { scene:Scene; events:Event[]; challenges:Challenge[] }
-type Tab = "overview"|"discover"|"connections"|"contracts"|"stories"|"games"|"operations"|"partner"|"profile"
+type Tab = "overview"|"discover"|"connections"|"contracts"|"campaigns"|"stories"|"games"|"operations"|"partner"|"profile"
 
 const money=(n:number)=>"LKR "+Number(n || 0).toLocaleString("en-US")
 const date=(d:string)=>new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
@@ -44,6 +45,7 @@ async function mutate(body:Record<string,unknown>) {
 export default function Dashboard() {
   const { data: session, isPending } = authClient.useSession()
   const [tab,setTab]=useState<Tab>("overview")
+  useEffect(()=>{if(new URLSearchParams(window.location.search).has("campaign"))setTab("campaigns")},[])
   const [me,setMe]=useState<{id:string;profile:Profile|null}|null>(null)
   const [connections,setConnections]=useState<Connection[]>([])
   const [scenes,setScenes]=useState<Scene[]>([])
@@ -230,7 +232,7 @@ export default function Dashboard() {
       <div className="rail-caption">WORKSPACE</div>
       {([
         ["overview","▦","Overview"],["discover","⌕","Discover"],["connections","◇","Connections"],
-        ["contracts","◈","Contracts"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["partner","☏","Partner space"],["profile","◎","My profile"],
+        ["contracts","◈","Contracts"],["campaigns","♧","Campaigns"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["partner","☏","Partner space"],["profile","◎","My profile"],
       ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations"||id==="partner")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
@@ -241,7 +243,7 @@ export default function Dashboard() {
     <section className="app-main">
       <div className="app-topline">
         <div><span className="eyebrow">THE PRIVATE STUDIO / {tab.toUpperCase()}</span>
-          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":tab==="partner"?"Your shared space":"Your identity"}</h1></div>
+          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="campaigns"?"Community campaigns":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":tab==="partner"?"Your shared space":"Your identity"}</h1></div>
         <div className="ops-top-controls">
           {profile&&active&&<button type="button" className="btn btn-danger-soft scene-global-stop"
             disabled={busy} onClick={()=>void stopNow()}>Stop scene</button>}
@@ -423,6 +425,7 @@ export default function Dashboard() {
         </>}
 
         {tab==="contracts" && <ContractStudio connections={connections} role={profile.role} actorId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
+        {tab==="campaigns" && <CampaignHub role={profile.role} onNotify={notify}/>}
         {tab==="stories" && <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>}
         {tab==="operations" && <OperationsHub scenes={scenes} selectedSceneId={selected} role={profile.role}
           meId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
