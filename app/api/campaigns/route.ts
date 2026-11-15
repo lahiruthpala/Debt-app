@@ -147,38 +147,38 @@ export async function GET(req:Request){
       const c=await campaign(db,id,u)
       const isCreator=c.creator_id===u.id
       const m=await membership(db,id,u.id)
-      const [details,totals,activities,posts,leaderboard,contributions,claims,pollVotes,following,creatorFollowing]=await Promise.all([
-        db.query("SELECT c.*,p.handle AS creator_handle FROM campaigns c JOIN profiles p ON p.id=c.creator_id WHERE c.id=$1",[id]),
-        campaignTotals(db,id),
-        db.query("SELECT id,kind,config,state,created_at FROM campaign_activities WHERE campaign_id=$1 ORDER BY created_at ASC LIMIT 30",[id]),
-        db.query("SELECT t.id,t.kind,t.parent_id,t.content,t.created_at,t.author_id,"+
+      const totals=await campaignTotals(db,id)
+      const [details,activities,posts,leaderboard,contributions,claims,pollVotes,following,creatorFollowing]=await Promise.all([
+        getPool().query("SELECT c.*,p.handle AS creator_handle FROM campaigns c JOIN profiles p ON p.id=c.creator_id WHERE c.id=$1",[id]),
+        getPool().query("SELECT id,kind,config,state,created_at FROM campaign_activities WHERE campaign_id=$1 ORDER BY created_at ASC LIMIT 30",[id]),
+        getPool().query("SELECT t.id,t.kind,t.parent_id,t.content,t.created_at,t.author_id,"+
           "CASE WHEN t.author_id=c.creator_id THEN p.handle WHEN m.anonymous=true THEN 'Anonymous participant' ELSE p.handle END AS display_handle,"+
           "(SELECT count(*)::int FROM campaign_reactions r WHERE r.post_id=t.id) AS reactions,"+
           "EXISTS(SELECT 1 FROM campaign_reactions r WHERE r.post_id=t.id AND r.member_id=$2) AS reacted "+
           "FROM campaign_posts t JOIN campaigns c ON c.id=t.campaign_id JOIN profiles p ON p.id=t.author_id "+
           "LEFT JOIN campaign_memberships m ON m.campaign_id=t.campaign_id AND m.member_id=t.author_id "+
           "WHERE t.campaign_id=$1 AND t.deleted_at IS NULL ORDER BY t.created_at DESC LIMIT 80",[id,u.id]),
-        db.query("SELECT p.handle,m.member_id,coalesce(sum(x.amount),0)::bigint AS total,"+
+        getPool().query("SELECT p.handle,m.member_id,coalesce(sum(x.amount),0)::bigint AS total,"+
           "coalesce((SELECT sum(pt.points) FROM campaign_point_events pt WHERE pt.campaign_id=$1 AND pt.member_id=m.member_id),0)::bigint AS points "+
           "FROM campaign_memberships m JOIN profiles p ON p.id=m.member_id "+
           "LEFT JOIN campaign_contributions x ON x.member_id=m.member_id AND x.campaign_id=m.campaign_id AND x.status='approved' "+
           "WHERE m.campaign_id=$1 AND m.status='active' AND m.leaderboard_opt_in=true AND m.anonymous=false "+
           "GROUP BY p.handle,m.member_id ORDER BY points DESC,total DESC LIMIT 30",[id]),
-        db.query("SELECT x.id,x.member_id,x.amount,x.note,x.status,x.created_at,x.review_note,x.reviewed_at,"+
+        getPool().query("SELECT x.id,x.member_id,x.amount,x.note,x.status,x.created_at,x.review_note,x.reviewed_at,"+
           "p.handle AS member_handle,m.anonymous, "+
           "(SELECT count(*)::int FROM campaign_evidence e WHERE e.contribution_id=x.id AND e.deleted_at IS NULL) AS evidence_count "+
           "FROM campaign_contributions x JOIN profiles p ON p.id=x.member_id "+
           "JOIN campaign_memberships m ON m.campaign_id=x.campaign_id AND m.member_id=x.member_id "+
           "WHERE x.campaign_id=$1 AND ($2::boolean OR x.member_id=$3) ORDER BY x.created_at DESC LIMIT 100",[id,isCreator,u.id]),
-        db.query("SELECT t.id,t.activity_id,t.member_id,t.note,t.status,t.points,t.review_note,t.created_at,"+
+        getPool().query("SELECT t.id,t.activity_id,t.member_id,t.note,t.status,t.points,t.review_note,t.created_at,"+
           "p.handle AS member_handle, "+
           "(SELECT count(*)::int FROM campaign_evidence e WHERE e.claim_id=t.id AND e.deleted_at IS NULL) AS evidence_count "+
           "FROM campaign_task_claims t JOIN profiles p ON p.id=t.member_id WHERE t.campaign_id=$1 "+
           "AND ($2::boolean OR t.member_id=$3) ORDER BY t.created_at DESC LIMIT 100",[id,isCreator,u.id]),
-        db.query("SELECT activity_id,choice_index,count(*)::int AS votes FROM campaign_votes WHERE campaign_id=$1 "+
+        getPool().query("SELECT activity_id,choice_index,count(*)::int AS votes FROM campaign_votes WHERE campaign_id=$1 "+
           "GROUP BY activity_id,choice_index",[id]),
-        db.query("SELECT 1 FROM campaign_follows WHERE campaign_id=$1 AND follower_id=$2",[id,u.id]),
-        db.query("SELECT 1 FROM campaign_creator_follows WHERE creator_id=$1 AND follower_id=$2",[c.creator_id,u.id])
+        getPool().query("SELECT 1 FROM campaign_follows WHERE campaign_id=$1 AND follower_id=$2",[id,u.id]),
+        getPool().query("SELECT 1 FROM campaign_creator_follows WHERE creator_id=$1 AND follower_id=$2",[c.creator_id,u.id])
       ])
       const row=details.rows[0]
       const visiblePosts=posts.rows.map(p=>({id:p.id,kind:p.kind,parent_id:p.parent_id,content:p.content,
