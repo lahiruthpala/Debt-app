@@ -18,7 +18,7 @@ type Detail={campaign:CampaignDefinition & {id:string;creator_id:string;creator_
   allow_comments:boolean;milestones:{title:string;threshold:number}[];tags:string[];has_cover?:boolean};
   totals:{total:number;members:number;contributors:number;progress:number};
   isCreator:boolean;membership:{status:string;anonymous:boolean;leaderboard_opt_in:boolean;personal_cap:number}|null;
-  following:boolean;activities:Activity[];posts:Post[];leaderboard:{handle:string;points:number;total:number}[];
+  following:boolean;creatorFollowing:boolean;activities:Activity[];posts:Post[];leaderboard:{handle:string;points:number;total:number}[];
   contributions:Contribution[];claims:Claim[];memberQueue:Member[];votes:{activity_id:string;choice_index:number;votes:number}[]}
 type Props={role:Role;onNotify:Feedback}
 const types:{id:string;title:string;summary:string;icon:string}[]=[
@@ -444,6 +444,10 @@ export default function CampaignHub({role,onNotify}:Props){
               onClick={()=>void run("preferences",{preferences:{anonymous,showOnLeaderboard:leaderboard,personalCap}})}>Save privacy & limits</button>}
           </div>}
           {member?.status==="left"&&<p className="muted">You previously left this campaign; rejoining requires fresh consent.</p>}
+          {campaign.visibility==="public"&&!detail.creatorFollowing&&<button className="btn btn-outline" disabled={busy}
+            onClick={()=>void run("follow_creator",{follow:true})}>Follow creator @{campaign.creator_handle}</button>}
+          {campaign.visibility==="public"&&detail.creatorFollowing&&<button className="btn btn-outline" disabled={busy}
+            onClick={()=>void run("follow_creator",{follow:false})}>Unfollow creator</button>}
           {role==="sub"&&!detail.following&&<button className="btn btn-outline" disabled={busy}
             onClick={()=>void run("follow",{follow:true})}>Follow updates</button>}
           {role==="sub"&&detail.following&&<button className="btn btn-outline" disabled={busy}
@@ -485,7 +489,7 @@ export default function CampaignHub({role,onNotify}:Props){
         </div>)}
       </div>}
 
-      {(participating||detail.isCreator)&&<div className="dash-card">
+      <div className="dash-card">
         <h3>Community activities</h3>
         {detail.activities.length===0?<p className="muted">No tasks, games or polls were added.</p>:detail.activities.map(a=><div className="campaign-activity" key={a.id}>
           <span className="campaign-kind">{a.kind.toUpperCase()}</span><strong>{a.config.title}</strong>
@@ -504,7 +508,7 @@ export default function CampaignHub({role,onNotify}:Props){
               onClick={()=>void run("vote",{activityId:a.id,choice:i})}>{choice} · {detail.votes.find(v=>v.activity_id===a.id&&v.choice_index===i)?.votes||0}</button>)}</div></>}
         </div>)}
         {gameResult&&<p className="campaign-game-result" role="status">{gameResult}</p>}
-      </div>}
+      </div>
 
       {(detail.isCreator||detail.claims.length>0)&&<div className="dash-card">
         <h3>{detail.isCreator?"Task approvals":"My submitted tasks"}</h3>
