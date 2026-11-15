@@ -319,7 +319,7 @@ export async function POST(req:Request){
       if(story.status!=="active")throw new PlatformError(409,"Story must be mutually accepted and active")
       if(story.last_actor_id===actor.id)throw new PlatformError(409,"Wait for your partner to choose next")
       const definition=parse(narrativeSchema,story.definition_snapshot)
-      const state=parse(z.object({nodeId:z.string(),flags:z.array(z.string()),decisions:z.number().int()}),story.state)
+      const state=parse(z.object({nodeId:z.string(),flags:z.array(z.string()),items:z.array(z.string()).max(12).default([]),decisions:z.number().int()}),story.state)
       const choiceId=parse(z.string(),body?.choiceId)
       let step:ReturnType<typeof narrativeStep>
       try{step=narrativeStep(definition,state,choiceId)}
@@ -339,7 +339,7 @@ export async function POST(req:Request){
         [JSON.stringify(step.state),actor.id,step.finished?"finished":"active",id])
       await award(db,sceneId,actor.id,"narrative",eventId,points)
       await emit(db,sceneId,actor.id,"story.choice",eventId,"Interactive story choice made",
-        {sessionId:id,chapter:step.chapter.id,choice:step.choice.id,points})
+        {sessionId:id,chapter:step.chapter.id,choice:step.choice.id,next:step.targetId,points})
       if(step.choice.proposeTask){
         const taskId=randomUUID()
         const task=assignmentInput.parse({title:step.choice.proposeTask,
