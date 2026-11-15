@@ -154,7 +154,8 @@ CREATE INDEX IF NOT EXISTS community_games_discover_idx ON community_games (publ
 
 CREATE TABLE IF NOT EXISTS community_game_sessions (
   id uuid PRIMARY KEY,
-  game_id uuid NOT NULL REFERENCES community_games(id) ON DELETE RESTRICT,
+  game_id uuid REFERENCES community_games(id) ON DELETE RESTRICT,
+  official_key varchar(60),
   scene_id uuid NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
   started_by text NOT NULL REFERENCES profiles(id),
   title_snapshot varchar(80) NOT NULL,
@@ -174,9 +175,17 @@ CREATE TABLE IF NOT EXISTS community_game_turns (
   session_id uuid NOT NULL REFERENCES community_game_sessions(id) ON DELETE CASCADE,
   actor_id text NOT NULL REFERENCES profiles(id),
   content varchar(1200) NOT NULL CHECK (char_length(content) BETWEEN 1 AND 1200),
+  official_node_id varchar(48),
+  official_choice_id varchar(48),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS community_game_turns_session_idx ON community_game_turns (session_id,created_at,id);
+
+-- Add curated story support to previously deployed databases without changing old sessions.
+ALTER TABLE community_game_sessions ALTER COLUMN game_id DROP NOT NULL;
+ALTER TABLE community_game_sessions ADD COLUMN IF NOT EXISTS official_key varchar(60);
+ALTER TABLE community_game_turns ADD COLUMN IF NOT EXISTS official_node_id varchar(48);
+ALTER TABLE community_game_turns ADD COLUMN IF NOT EXISTS official_choice_id varchar(48);
 
 CREATE TABLE IF NOT EXISTS community_game_reports (
   game_id uuid NOT NULL REFERENCES community_games(id) ON DELETE CASCADE,
