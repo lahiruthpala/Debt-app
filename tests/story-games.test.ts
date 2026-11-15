@@ -22,7 +22,7 @@ test("every interactive story choice leads to a playable conclusion", () => {
   for (const game of officialStoryGames) {
     const destinations = new Set<string>()
     const endings = new Set<string>()
-    function walk(decisions:StoryDecision[]) {
+    const walk = (decisions:StoryDecision[]):void => {
       const progress=storyProgress(game,decisions)
       destinations.add(progress.node.id)
       if(progress.complete) {
