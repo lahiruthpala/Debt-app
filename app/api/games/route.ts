@@ -133,7 +133,7 @@ export async function GET(req:Request) {
       const id=parse(uuid,url.searchParams.get("id"))
       const {rows}=await getPool().query(
         "SELECT gs.id,gs.game_id,gs.scene_id,gs.title_snapshot,gs.rules_snapshot,gs.prompt_snapshot,"+
-        "gs.state,gs.created_at,gs.finished_at,p.handle AS started_by_handle "+
+        "gs.state,gs.official_key,gs.created_at,gs.finished_at,p.handle AS started_by_handle "+
         "FROM community_game_sessions gs JOIN scenes s ON s.id=gs.scene_id "+
         "JOIN connections c ON c.id=s.connection_id JOIN profiles p ON p.id=gs.started_by "+
         "WHERE gs.id=$1 AND (c.sender_id=$2 OR c.recipient_id=$2)", [id,actorId]
