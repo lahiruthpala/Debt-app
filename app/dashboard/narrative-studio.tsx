@@ -191,7 +191,32 @@ export default function NarrativeStudio({scenes,selectedSceneId,meId,onNotify}:{
                onChange={e=>changeChoice(i,j,{requiresFlag:e.target.value||undefined})}/></label>
              <label>SET FLAG<input placeholder="Optional flag" value={choice.setsFlag||""}
                onChange={e=>changeChoice(i,j,{setsFlag:e.target.value||undefined})}/></label>
+             <label>REQUIRES ITEM<input placeholder="Optional inventory item" value={choice.requiresItem||""}
+               onChange={e=>changeChoice(i,j,{requiresItem:e.target.value||undefined})}/></label>
+             <label>GRANT ITEM<input placeholder="Optional new item" value={choice.grantItem||""}
+               onChange={e=>changeChoice(i,j,{grantItem:e.target.value||undefined})}/></label>
+             <label>CONSUME ITEM<input placeholder="Optional used item" value={choice.consumeItem||""}
+               onChange={e=>changeChoice(i,j,{consumeItem:e.target.value||undefined})}/></label>
            </div>
+           <label className="check-label"><input type="checkbox"
+             checked={Boolean(choice.randomTargets?.length)}
+             onChange={e=>changeChoice(i,j,{randomTargets:e.target.checked?[
+               {next:choice.next,weight:50},
+               {next:editor.nodes.find(x=>x.id!==choice.next)?.id||choice.next,weight:50}
+             ]:undefined})}/>Use server-random weighted encounter destinations</label>
+           {choice.randomTargets?.map((outcome,k)=><div className="scene-random-route" key={k}>
+             <label>RANDOM DESTINATION<select value={outcome.next} onChange={e=>changeChoice(i,j,{
+               randomTargets:choice.randomTargets?.map((item,index)=>index===k?{...item,next:e.target.value}:item)
+             })}>{editor.nodes.map(n=><option key={n.id} value={n.id}>{n.title} · {n.id}</option>)}</select></label>
+             <label>WEIGHT (1–100)<input type="number" min={1} max={100} value={outcome.weight}
+               onChange={e=>changeChoice(i,j,{randomTargets:choice.randomTargets?.map((item,index)=>
+                 index===k?{...item,weight:Number(e.target.value)}:item)})}/></label>
+             <button className="btn btn-quiet" type="button" disabled={choice.randomTargets.length<=2}
+               onClick={()=>changeChoice(i,j,{randomTargets:choice.randomTargets?.filter((_,index)=>index!==k)})}>Remove route</button>
+           </div>)}
+           {choice.randomTargets&&<button type="button" className="btn btn-outline" disabled={choice.randomTargets.length>=5}
+             onClick={()=>changeChoice(i,j,{randomTargets:[...choice.randomTargets!,
+               {next:choice.next,weight:10}]})}>＋ Weighted outcome</button>}
            <label>OPTIONAL TASK PROPOSAL<input maxLength={100} value={choice.proposeTask}
              placeholder="No task unless named" onChange={e=>changeChoice(i,j,{proposeTask:e.target.value})}/></label>
            <button type="button" className="btn btn-quiet" onClick={()=>changeChapter(i,{
@@ -214,7 +239,7 @@ export default function NarrativeStudio({scenes,selectedSceneId,meId,onNotify}:{
      <aside className="dash-card"><h3>Story flow preview</h3>
        {editor.nodes.map((node,i)=><div className="scene-flow-node" key={i}><strong>{node.id} · {node.title}</strong>
          <small>{node.choices.length?node.choices.map(c=>c.label+" → "+c.next).join(" · "):"End"}</small></div>)}
-       <p className="muted">Flag conditions unlock or hide individual choices. All outcomes are versioned. Tasks remain proposals requiring partner consent.</p>
+       <p className="muted">Flags and inventory unlock or hide choices. Weighted encounters use secure server randomness. Story rewards are capped and never change fictional balances. Tasks stay proposals requiring partner consent.</p>
      </aside>
    </div>}
    {section==="playing"&&<div className="ops-stack">
@@ -230,7 +255,8 @@ export default function NarrativeStudio({scenes,selectedSceneId,meId,onNotify}:{
          <div className="ops-item-head"><h3>{session.definition_snapshot.title}</h3>
            <span className={"status status-"+session.status}>{session.status}</span></div>
          <p className="muted">{session.definition_snapshot.summary}</p>
-         <small>{session.turn_count} choices · {session.state.flags.length} story flags</small>
+         <small>{session.turn_count} choices · {session.state.flags.length} story flags · {session.state.items?.length||0} inventory items</small>
+         {session.state.items?.length>0&&<p className="scene-story-items">Inventory: {session.state.items.join(" · ")}</p>}
          {session.status==="proposed"&&<div className="person-actions">
            {session.proposed_by!==meId&&<><button className="btn btn-red" disabled={working||!canPlay}
              onClick={()=>void submit({action:"story-decision",sceneId,id:session.id,approve:true})}>Accept playbook</button>
