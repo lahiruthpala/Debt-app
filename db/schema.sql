@@ -1004,7 +1004,7 @@ CREATE TABLE IF NOT EXISTS campaign_memberships (
   id uuid PRIMARY KEY,
   campaign_id uuid NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   member_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  status varchar(12) NOT NULL CHECK(status IN ('pending','active','left','removed')),
+  status varchar(12) NOT NULL CHECK(status IN ('invited','pending','active','left','removed')),
   accepted_version integer NOT NULL,
   anonymous boolean NOT NULL DEFAULT false,
   leaderboard_opt_in boolean NOT NULL DEFAULT false,
