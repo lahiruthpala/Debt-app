@@ -421,6 +421,12 @@ export async function POST(req:Request){
         if(!step)throw new PlatformError(409,"No remaining steps")
         const note=parse(z.string().trim().max(1000),body?.note||"")
         if(step.requiresNote&&note.length<12)throw new PlatformError(400,"This step asks for a text report of at least 12 characters")
+        if(step.requiresPhoto){
+          const files=await db.query("SELECT 1 FROM assignment_step_evidence "+
+            "WHERE assignment_id=$1 AND step_number=$2 AND deleted_at IS NULL "+
+            "AND status IN('pending','approved') LIMIT 1",[id,task.next_step])
+          if(!files.rowCount)throw new PlatformError(409,"Upload at least one voluntary private step photo before submitting")
+        }
         if(step.timerMinutes){
           if(!task.step_started_at)throw new PlatformError(409,"Start this step's optional activity timer first")
           const elapsed=(Date.now()-new Date(task.step_started_at).getTime())/60000
