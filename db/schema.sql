@@ -739,6 +739,7 @@ CREATE TABLE IF NOT EXISTS scene_assignments (
   completed_at timestamptz,
   CHECK(jsonb_typeof(steps)='array' AND jsonb_array_length(steps) BETWEEN 1 AND 8)
 );
+ALTER TABLE scene_assignments ADD COLUMN IF NOT EXISTS step_started_at timestamptz;
 CREATE INDEX IF NOT EXISTS scene_assignments_idx ON scene_assignments(scene_id,status,created_at DESC);
 
 CREATE TABLE IF NOT EXISTS assignment_step_submissions (
