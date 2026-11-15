@@ -5,6 +5,8 @@ import { authClient } from "@/lib/auth-client"
 import { QUESTS } from "@/lib/ledger"
 import CommunityGames from "./community-games"
 import ContractStudio from "./contract-studio"
+import OperationsHub from "./operations-hub"
+import NotificationCenter from "./notification-center"
 import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
 import {ProfileShowcaseEditor,ShowcasePreviewModal} from "./profile-showcase"
@@ -18,7 +20,7 @@ type Scene = { id:string; connection_id:string; status:string; connection_state:
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
 type Details = { scene:Scene; events:Event[]; challenges:Challenge[] }
-type Tab = "overview"|"discover"|"connections"|"contracts"|"stories"|"games"|"profile"
+type Tab = "overview"|"discover"|"connections"|"contracts"|"stories"|"games"|"operations"|"profile"
 
 const money=(n:number)=>"LKR "+Number(n || 0).toLocaleString("en-US")
 const date=(d:string)=>new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
@@ -193,6 +195,15 @@ export default function Dashboard() {
   const active=scene?.status==="active" && scene.connection_state==="active"
   const activeConnections=connections.filter(c=>c.state==="active")
   const initialRole=ownRole==="dom"?"DOM":"SUB"
+  useEffect(()=>{
+    function openActivity(event:Event){
+      const sceneId=(event as CustomEvent<{sceneId:string}>).detail?.sceneId
+      if(sceneId&&scenes.some(s=>s.id===sceneId))setSelected(sceneId)
+      setTab("operations")
+    }
+    window.addEventListener("debt-scene-activity",openActivity)
+    return ()=>window.removeEventListener("debt-scene-activity",openActivity)
+  },[scenes])
 
   if(isPending || loading) return <div className="load-screen"><div className="brand">◆ VELVET LEDGER</div><p>Opening your private studio...</p></div>
   if(!session) return <div className="guest-screen"><div className="eyebrow">PRIVATE STUDIO</div><h1>Your ledger is waiting.</h1><p>Sign in to access your connections and fictional scenes.</p><Link href="/login" className="btn btn-red">Sign in ↗</Link></div>
@@ -203,8 +214,8 @@ export default function Dashboard() {
       <div className="rail-caption">WORKSPACE</div>
       {([
         ["overview","▦","Overview"],["discover","⌕","Discover"],["connections","◇","Connections"],
-        ["contracts","◈","Contracts"],["stories","✦","Story games"],["games","♢","Game room"],["profile","◎","My profile"],
-      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories")void refresh()}}>
+        ["contracts","◈","Contracts"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["profile","◎","My profile"],
+      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
       <div className="rail-bottom"><div className="rail-legal">18+ CONSENSUAL ROLEPLAY<br/>ALL BALANCES ARE FICTIONAL</div>
@@ -214,8 +225,8 @@ export default function Dashboard() {
     <section className="app-main">
       <div className="app-topline">
         <div><span className="eyebrow">THE PRIVATE STUDIO / {tab.toUpperCase()}</span>
-          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":"Your identity"}</h1></div>
-        <div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div>
+          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":"Your identity"}</h1></div>
+        <div className="ops-top-controls">{profile&&<NotificationCenter onNotify={notify}/>}<div className="user-pill"><span className="avatar">{profile?.handle?.slice(0,1).toUpperCase()||"?"}</span><div><b>@{profile?.handle || session.user.name}</b><small>{profile?initialRole:"SETUP REQUIRED"}</small></div></div></div>
       </div>
       {updateAvailable&&<div className="app-update-banner">
         <div><strong>App update available</strong><p>Refresh to get the latest contract and lock review interface.</p></div>
@@ -394,6 +405,8 @@ export default function Dashboard() {
 
         {tab==="contracts" && <ContractStudio connections={connections} role={profile.role} actorId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
         {tab==="stories" && <CommunityGames scenes={scenes} selectedSceneId={selected} meId={me?.id||""} onNotify={notify}/>}
+        {tab==="operations" && <OperationsHub scenes={scenes} selectedSceneId={selected} role={profile.role}
+          meId={me?.id||""} onNotify={notify} onChanged={refresh}/>}
         {tab==="games" && <>
           <div className="quick-room-intro"><div><span className="eyebrow">INSTANT PLAY · FICTIONAL CREDITS</span><h2>Pick a game. Play a round.</h2><p>Quick mini-games for an active connection, with clear outcomes and limited plays. For custom contracts or open-ended stories, use their separate workspaces.</p></div><div className="quick-room-links"><button type="button" className="btn btn-outline" onClick={()=>setTab("contracts")}>Contract studio ↗</button><button type="button" className="btn btn-outline" onClick={()=>setTab("stories")}>Story games ↗</button></div></div>
           {!scene?<div className="empty-block"><h2>Start a scene to unlock the game room.</h2><p>Connect with a partner and activate a consensual fictional ledger first.</p><button className="btn btn-red" onClick={()=>setTab("discover")}>Find a partner ↗</button></div>:<>
