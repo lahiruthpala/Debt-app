@@ -128,6 +128,86 @@ test("database-backed signup, matchmaking, consent, ledger, games and exit", asy
     expect(basicDocument.getTitle()).toContain("Fictional Ledger Agreement")
     expect((await domPage.request.get("/api/contracts/pdf?sceneId="+proposedId)).status()).toBe(200)
 
+    // Operations integration: scene-aware alerts, opt-in schedules and separate reward points.
+    const notifications=await subPage.request.get("/api/operations?view=notifications")
+    expect(notifications.status()).toBe(200)
+    expect((await notifications.json()).notifications.some((x:{kind:string})=>x.kind==="invitation")).toBe(true)
+    expect((await subPage.request.get("/api/maintenance")).status()).toBe(403)
+
+    await visit(domPage,"Activity hub")
+    await expect(domPage.getByRole("heading",{name:"Stay in sync with every scene."})).toBeVisible()
+    await domPage.getByRole("button",{name:"Rituals & schedules"}).click()
+    await expect(domPage.getByRole("heading",{name:"New recurring ritual"})).toBeVisible()
+    const created=await domPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"ritual-create",sceneId:proposedId,
+        title:"Voluntary progress "+stamp,description:"A creative daily check-in.",
+        days:[0,1,2,3,4,5,6],hour:20,timezone:"UTC",requiresProof:false,points:20}
+    })
+    expect(created.status()).toBe(201)
+    const ritualId=(await created.json()).id
+    const forbidden=await domPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"ritual-decision",sceneId:proposedId,id:ritualId,decision:"active"}
+    })
+    expect(forbidden.status()).toBe(403)
+    const accepted=await subPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"ritual-decision",sceneId:proposedId,id:ritualId,decision:"active"}
+    })
+    expect(accepted.status()).toBe(200)
+    const scheduled=(await (await subPage.request.get("/api/operations?view=rituals&sceneId="+proposedId)).json())
+    const occurrence=scheduled.occurrences.find((x:{ritual_id:string})=>x.ritual_id===ritualId)
+    expect(occurrence.status).toBe("pending")
+    const submitted=await subPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"ritual-submit",sceneId:proposedId,id:occurrence.id,note:"Completed."}
+    })
+    expect(submitted.status()).toBe(200)
+    const queued=(await (await domPage.request.get("/api/operations?view=queue&sceneId="+proposedId)).json()).queue
+    expect(queued.some((x:{id:string})=>x.id===occurrence.id)).toBe(true)
+    const subReview=await subPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"ritual-review",sceneId:proposedId,id:occurrence.id,approve:true}
+    })
+    expect(subReview.status()).toBe(403)
+    const approved=await domPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"ritual-review",sceneId:proposedId,id:occurrence.id,approve:true}
+    })
+    expect(approved.status()).toBe(200)
+    const points=(await (await subPage.request.get("/api/operations?view=rewards&sceneId="+proposedId)).json())
+    expect(points.balances.find((b:{handle:string})=>b.handle===subHandle)?.balance).toBe(20)
+    const added=await domPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"reward-create",sceneId:proposedId,
+        title:"Choose the next story",description:"A voluntary fictional game reward.",cost:10}
+    })
+    expect(added.status()).toBe(201)
+    const rewardId=(await added.json()).id
+    const redeem=await subPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"reward-redeem",sceneId:proposedId,id:rewardId}
+    })
+    expect(redeem.status()).toBe(200)
+    const redemptions=(await (await domPage.request.get("/api/operations?view=rewards&sceneId="+proposedId)).json()).redemptions
+    const redemption=redemptions.find((x:{option_id:string})=>x.option_id===rewardId)
+    expect(redemption.status).toBe("pending")
+    const fulfilled=await domPage.request.post("/api/operations",{
+      headers:{origin:apiOrigin},data:{action:"reward-review",sceneId:proposedId,id:redemption.id,approve:true}
+    })
+    expect(fulfilled.status()).toBe(200)
+    for(const [page,name] of [[domPage,domHandle],[subPage,subHandle]] as const){
+      const response=await page.request.post("/api/operations",{
+        headers:{origin:apiOrigin},data:{action:"sign",sceneId:proposedId,typedName:name,acknowledged:true}
+      })
+      expect(response.status()).toBe(200)
+    }
+    const signatures=(await (await subPage.request.get("/api/operations?view=signatures&sceneId="+proposedId)).json()).signatures
+    expect(signatures).toHaveLength(2)
+    const projected=await subPage.request.get("/api/operations?view=forecast&sceneId="+proposedId+
+      "&weeks=6&interest=false&extra=100&late=%5B%5D")
+    expect(projected.status()).toBe(200)
+    expect((await projected.json()).weeks).toHaveLength(6)
+    const postOps=(await (await subPage.request.get("/api/studio?view=scenes")).json()).scenes[0]
+    expect([postOps.principal,postOps.interest,postOps.penalties]).toEqual([250000,0,0])
+    const newPdf=await subPage.request.get("/api/contracts/pdf?sceneId="+proposedId)
+    expect(newPdf.status()).toBe(200)
+    await PDFDocument.load(await newPdf.body())
+    await visit(domPage,"Overview")
+
     // Publish an original game and play it as both members of the approved scene.
     const creativeTitle = "Story_" + stamp
     await visit(domPage, "Story games")
