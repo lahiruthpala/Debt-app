@@ -382,6 +382,15 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .game-turns{max-height:440px;overflow-y:auto;padding:3px 0}.game-turn{padding:14px;margin-bottom:11px;border-radius:10px;background:#261c26;border:1px solid #463443}.game-turn.own{background:#342437;border-color:#76516b}
 .game-turn-header{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.game-turn-header strong{font-size:.74rem;color:#f0b5cf}.game-turn-header small{font-size:.65rem;color:#a99aa7}.game-turn p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:.85rem;margin-top:9px}
 .game-turn-form{display:flex;flex-direction:column;gap:12px;margin:17px 0}.game-turn-form label{font-size:.66rem;letter-spacing:.1em;font-weight:800;color:#d2aebf}.game-turn-form textarea{display:block;margin-top:10px;font-size:.86rem;letter-spacing:normal;font-weight:400}.game-turn-form .btn{align-self:flex-start}
+.story-chapter{margin:20px 0;padding:20px;background:linear-gradient(150deg,#39253a,#1e1826);border:1px solid #86526d;border-radius:13px}
+.story-chapter>p{font-size:.91rem;line-height:1.8;color:#f2dce8;white-space:pre-wrap;margin:13px 0;overflow-wrap:anywhere}
+.story-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:19px}
+.story-choice{display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;border:1px solid #aa718d;border-radius:9px;background:#4b2d43;box-shadow:none;color:#fff;font-size:.83rem;line-height:1.4;padding:14px}
+.story-choice:hover:not(:disabled),.story-choice:focus-visible{background:#663950;border-color:#efbdd4}
+.story-choice:disabled{opacity:.45;cursor:not-allowed}.story-choice span{flex-shrink:0;color:#f4bbd0}
+.story-choice-grid .community-hint{grid-column:1/-1}
+.story-complete{font-size:.82rem;color:#ebc6a4;padding:11px 0 0;border-top:1px solid #785169}
+@media(max-width:600px){.story-choice-grid{grid-template-columns:1fr}.story-chapter{padding:15px}}
 .session-actions{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:17px;border-top:1px solid #48313e;padding-top:17px}
 .community-classics{margin-top:35px}.community-classics h2{font-size:1.25rem}
 @media(max-width:1150px){.community-layout{grid-template-columns:1fr}.game-inspector{position:static}}
