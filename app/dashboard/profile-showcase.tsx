@@ -10,14 +10,12 @@ type PublicProfile={
   showAchievements:boolean;showActivity:boolean;updatedAt?:string
 }
 type ActivityItem={label:string;date:string}
-type ShowcaseResponse={profile:PublicProfile;stats?:ShowcaseStats;badges?:ShowcaseBadge[];activity?:ActivityItem[]}
+type ShowcaseResponse={profile:PublicProfile;stats?:ShowcaseStats;badges?:ShowcaseBadge[];catalog?:ShowcaseBadge[];featuredBadges?:string[];activity?:ActivityItem[]}
 type ProfileTab="overview"|"activity"|"achievements"
 const defaults:ShowcaseSettings={
   displayName:"",tagline:"",likes:[],dislikes:[],dedication:"",boundaries:"",
-  showcaseEnabled:false,showStats:false,showAchievements:false,showActivity:false
+  showcaseEnabled:false,showStats:false,showAchievements:false,showActivity:false,featuredBadges:[]
 }
-const badgeSymbols:Record<string,string>={"first-agreement":"✦","consistent-partner":"◆","first-game":"⚄",
-  "active-player":"✺","verified-task":"✓","verified-evidence":"◈","trusted-reviewer":"♢","creator":"✎","campaign-creator":"♕","community-member":"◇","fictional-contributor":"◎","campaign-task":"✦"}
 const stats: {key:keyof ShowcaseStats;label:string;symbol:string}[]=[
   {key:"acceptedAgreements",label:"Agreements",symbol:"◇"},
   {key:"gameActions",label:"Game actions",symbol:"⚄"},
@@ -55,6 +53,8 @@ function MemberCard({data,preview=false,actions}:{data:ShowcaseResponse;preview?
   const initials=display.trim().slice(0,2).toUpperCase()
   const hasActivity=Boolean(data.activity)
   const hasBadges=Boolean(data.badges)
+  const displayedBadges=data.catalog??data.badges??[]
+  const featured=(data.featuredBadges??[]).map(id=>data.badges?.find(b=>b.id===id)).filter((b):b is ShowcaseBadge=>Boolean(b))
   return <article className="profile-v2" aria-label={"Member profile for @"+p.handle}>
     <div className="profile-v2-cover">
       <div className="profile-v2-cover-pattern" aria-hidden="true"><span>✦</span><span>◇</span><span>◈</span></div>
@@ -71,6 +71,9 @@ function MemberCard({data,preview=false,actions}:{data:ShowcaseResponse;preview?
           <span className={"profile-v2-role is-"+p.role}>{p.role==="dom"?"Dom":"Sub"}</span>
           <span className="profile-v2-visibility">{p.discoverable?"Discoverable":"Private profile"}</span>
         </div>
+        {full&&featured.length>0&&<div className="profile-v2-featured" aria-label="Featured achievements">{featured.map(b=>
+          <span className={"profile-v2-featured-chip is-"+b.rarity} key={b.id} title={b.description}>
+            <span aria-hidden="true">{b.symbol}</span> {b.title}</span>)}</div>}
         {full&&p.tagline?<p className="profile-v2-headline">{p.tagline}</p>:
           <p className="profile-v2-headline">{p.bio||"Discover more about this member before deciding to connect."}</p>}
       </div>
@@ -146,15 +149,22 @@ function MemberCard({data,preview=false,actions}:{data:ShowcaseResponse;preview?
     </div>}
     {active==="achievements"&&<div className="profile-v2-content">
       <section className="profile-v2-panel profile-v2-tab-panel">
-        <SectionTitle eyebrow="EARNED IN THE APP" title="Achievements"/>
-        {hasBadges?(data.badges?.length?<div className="profile-v2-badge-grid">{data.badges.map(b=>
-          <div className="profile-v2-badge" key={b.id}>
-            <span className="profile-v2-badge-icon" aria-hidden="true">{badgeSymbols[b.id]||"✦"}</span>
-            <div><strong>{b.title}</strong><small>{b.description}</small></div></div>)}</div>:
-          <p className="profile-v2-empty">No achievements earned yet.</p>):
+        <SectionTitle eyebrow={p.role==="dom"?"SOVEREIGN COLLECTION":"DEVOTION COLLECTION"} title="Achievements"/>
+        {hasBadges?(displayedBadges.length?<div className="profile-v2-badge-grid">{displayedBadges.map(b=>
+          <div className={"profile-v2-badge is-"+b.rarity+(b.earned?"":" is-locked")} key={b.id}>
+            <span className="profile-v2-badge-icon" aria-hidden="true">{b.symbol}</span>
+            <div className="profile-v2-badge-details">
+              <div className="profile-v2-badge-top"><strong>{b.title}</strong><span>{b.rarity} · {b.earned?"Earned":"Locked"}</span></div>
+              <small>{b.description}</small>
+              {!b.earned&&<div className="profile-v2-badge-progress">
+                <progress max={b.target} value={Math.min(b.progress,b.target)} aria-label={b.title+" progress"}/>
+                <span>{b.progress}/{b.target}{b.secondaryTarget!==undefined?" · "+(b.secondaryProgress??0)+"/"+b.secondaryTarget+" participants or campaigns":""}</span>
+              </div>}
+            </div>
+          </div>)}</div>:<p className="profile-v2-empty">No achievements earned yet.</p>):
           <div className="profile-v2-private-panel"><span aria-hidden="true">✦</span>
             <strong>Achievements are private</strong><p>This member has chosen not to share their earned badges.</p></div>}
-        <p className="profile-v2-fineprint">Achievements are calculated from recorded app events. They cannot be awarded manually.</p>
+        <p className="profile-v2-fineprint">Only verified app actions count. Locking, paying, pausing, declining, or leaving is never required to preserve consent.</p>
       </section>
     </div>}
     <footer className="profile-v2-footer">Profile information is self-reported unless marked as verified app activity. All connections require mutual consent.</footer>
@@ -233,7 +243,8 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
         displayName:p.displayName||"",tagline:p.tagline||"",likes:normalizeInterests(p.likes),
         dislikes:normalizeInterests(p.dislikes),dedication:p.dedication||"",boundaries:p.boundaries||"",
         showcaseEnabled:p.showcaseEnabled||false,showStats:p.showStats||false,
-        showAchievements:p.showAchievements||false,showActivity:p.showActivity||false
+        showAchievements:p.showAchievements||false,showActivity:p.showActivity||false,
+        featuredBadges:result.featuredBadges||[]
       })
       setSavedVisible(Boolean(p.showcaseEnabled&&p.discoverable))
       setReady(true)
@@ -349,12 +360,24 @@ export function ProfileShowcaseEditor({handle,onNotify}:{handle:string;onNotify:
             onChange={e=>set("showActivity",e.target.checked)}/>
             <span>Share recent generic activities (date only)</span></label>
         </div>
+        <section className="showcase-featured-editor" aria-label="Choose featured achievements">
+          <strong>FEATURED BADGES · {fields.featuredBadges.length}/3</strong>
+          <p>Choose up to three badges you have earned. They appear on your public profile only when achievement sharing is enabled.</p>
+          {data?.badges?.length?<div className="showcase-featured-options">{data.badges.map(b=>
+            <label key={b.id} className={"showcase-featured-choice is-"+b.rarity}>
+              <input type="checkbox" checked={fields.featuredBadges.includes(b.id)}
+                disabled={!fields.featuredBadges.includes(b.id)&&fields.featuredBadges.length>=3}
+                onChange={e=>set("featuredBadges",e.target.checked?
+                  [...fields.featuredBadges,b.id]:fields.featuredBadges.filter(id=>id!==b.id))}/>
+              <span aria-hidden="true">{b.symbol}</span><span>{b.title}</span>
+            </label>)}</div>:<p className="muted">Earn your first badge to feature it here.</p>}
+        </section>
         {!data?.profile.discoverable&&<p className="showcase-visibility-warning">
           Your account is hidden from discovery. Enable "Show my profile in discovery" in the identity form above to make this showcase visible.</p>}
         <button className="btn btn-red" type="submit" disabled={busy}>Save showcase preferences</button>
       </form>
       <div><div className="eyebrow showcase-preview-label">YOUR PRIVATE PREVIEW</div>
-        {data&&<MemberCard preview data={{...data,profile:{
+        {data&&<MemberCard preview data={{...data,featuredBadges:fields.featuredBadges,profile:{
           ...data.profile,displayName:fields.displayName,tagline:fields.tagline,
           likes:fields.likes,dislikes:fields.dislikes,
           dedication:fields.dedication,boundaries:fields.boundaries

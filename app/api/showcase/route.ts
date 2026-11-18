@@ -1,6 +1,8 @@
 import {getAuth} from "@/lib/auth"
 import {getPool} from "@/lib/db"
-import {showcaseSchema,earnedBadges,activityLabel,normalizeInterests,type ShowcaseStats} from "@/lib/showcase"
+import {showcaseSchema,earnedBadges,badgesForRole,normalizeFeaturedBadges,activityLabel,normalizeInterests,type ShowcaseStats,type ShowcaseBadge,type BadgeRole} from "@/lib/showcase"
+import {showcaseStatsSql} from "@/lib/showcase-stats"
+import {randomUUID} from "node:crypto"
 import {z} from "zod"
 
 export const runtime="nodejs"
@@ -25,27 +27,34 @@ function checkOrigin(req:Request){
   }catch{return false}
 }
 async function statsFor(id:string):Promise<ShowcaseStats>{
-  const sql=[
-    "SELECT",
-    "(SELECT count(*)::int FROM scenes s JOIN connections c ON c.id=s.connection_id",
-    "WHERE (c.sender_id=$1 OR c.recipient_id=$1) AND s.approved_at IS NOT NULL) AS \"acceptedAgreements\",",
-    "(SELECT count(*)::int FROM contract_action_log a WHERE a.actor_id=$1",
-    "AND a.action IN ('dice','wheel','random','checkin')) AS \"gameActions\",",
-    "(SELECT count(*)::int FROM contract_task_claims q WHERE q.requested_by=$1 AND q.state='approved') AS \"tasksApproved\",",
-    "(SELECT count(*)::int FROM proof_submissions p WHERE p.submitter_id=$1 AND p.status='approved') AS \"proofsApproved\",",
-    "(SELECT count(*)::int FROM proof_submissions p WHERE p.reviewer_id=$1 AND p.status='approved') AS \"proofsReviewed\",",
-    "(SELECT count(*)::int FROM debt_contract_templates t WHERE t.author_id=$1 AND t.published=true) AS \"publishedTemplates\",",
-    "(SELECT count(*)::int FROM campaigns c WHERE c.creator_id=$1 AND c.published_at IS NOT NULL) AS \"campaignsCreated\",",
-    "(SELECT count(*)::int FROM campaign_memberships m WHERE m.member_id=$1 AND m.joined_at IS NOT NULL) AS \"campaignsJoined\",",
-    "(SELECT count(*)::int FROM campaign_contributions c WHERE c.member_id=$1 AND c.status='approved') AS \"campaignContributions\",",
-    "(SELECT count(*)::int FROM campaign_task_claims c WHERE c.member_id=$1 AND c.status='approved') AS \"campaignTasksApproved\""
-  ].join(" ")
-  const {rows}=await getPool().query<ShowcaseStats>(sql,[id])
+  const {rows}=await getPool().query<ShowcaseStats>(showcaseStatsSql,[id])
   return rows[0]
+}
+// Persist first unlocks; the notification is added once when the member next
+// opens their showcase, without exposing private activities to other members.
+async function syncBadgeUnlocks(id:string,earned:ShowcaseBadge[]):Promise<Record<string,string>> {
+  if(earned.length){
+    const {rows}=await getPool().query<{badge_id:string}>(
+      "INSERT INTO profile_badge_unlocks(user_id,badge_id) "+
+      "SELECT $1, b.id FROM unnest($2::text[]) AS b(id) "+
+      "ON CONFLICT(user_id,badge_id) DO NOTHING RETURNING badge_id",
+      [id,earned.map(b=>b.id)])
+    for(const row of rows){
+      const badge=earned.find(b=>b.id===row.badge_id)
+      if(!badge)continue
+      await getPool().query(
+        "INSERT INTO activity_notifications(id,user_id,event_key,kind,title,detail) "+
+        "VALUES($1,$2,$3,'achievement',$4,$5) ON CONFLICT(user_id,event_key) DO NOTHING",
+        [randomUUID(),id,"badge:"+badge.id,"Achievement unlocked: "+badge.title,badge.description])
+    }
+  }
+  const {rows}=await getPool().query<{badge_id:string;unlocked_at:string}>(
+    "SELECT badge_id,unlocked_at FROM profile_badge_unlocks WHERE user_id=$1",[id])
+  return Object.fromEntries(rows.map(row=>[row.badge_id,new Date(row.unlocked_at).toISOString()]))
 }
 const defaults={
   display_name:"",tagline:"",likes:[],dislikes:[],dedication:"",boundaries:"",
-  showcase_enabled:false,show_stats:false,show_achievements:false,show_activity:false
+  showcase_enabled:false,show_stats:false,show_achievements:false,show_activity:false,featured_badges:[]
 }
 export async function GET(req:Request){
   try{
@@ -58,7 +67,7 @@ export async function GET(req:Request){
     const {rows}=await getPool().query(
       "SELECT p.id,p.handle,p.role,p.bio,p.discoverable,p.adult_confirmed,p.updated_at,"+
       "s.display_name,s.tagline,s.likes,s.dislikes,s.dedication,s.boundaries,"+
-      "s.showcase_enabled,s.show_stats,s.show_achievements,s.show_activity "+
+      "s.showcase_enabled,s.show_stats,s.show_achievements,s.show_activity,s.featured_badges "+
       "FROM profiles p LEFT JOIN profile_showcases s ON s.user_id=p.id "+
       (own?"WHERE p.id=$1":"WHERE lower(p.handle)=lower($1)"),
       [own?actor.id:parsedHandle!.data])
@@ -77,7 +86,7 @@ export async function GET(req:Request){
     }
     const settings={...defaults,...p}
     const showcaseVisible=isOwn||Boolean(p.showcase_enabled)
-    const result:{profile:unknown;stats?:ShowcaseStats;badges?:unknown;activity?:unknown}={
+    const result:{profile:unknown;stats?:ShowcaseStats;badges?:ShowcaseBadge[];catalog?:ShowcaseBadge[];featuredBadges?:string[];activity?:unknown}={
       profile:{
         handle:p.handle,role:p.role,bio:p.bio,
         displayName:showcaseVisible?(settings.display_name??""):"",
@@ -96,8 +105,17 @@ export async function GET(req:Request){
     }
     if(isOwn||(showcaseVisible&&(settings.show_stats||settings.show_achievements))){
       const stats=await statsFor(p.id)
+      const role=p.role as BadgeRole
+      const earned=earnedBadges(stats,role)
+      const unlocked=isOwn?await syncBadgeUnlocks(p.id,earned):{}
       if(isOwn||settings.show_stats)result.stats=stats
-      if(isOwn||settings.show_achievements)result.badges=earnedBadges(stats)
+      if(isOwn){
+        result.catalog=badgesForRole(stats,role).map(b=>({...b,unlockedAt:unlocked[b.id]}))
+      }
+      if(isOwn||settings.show_achievements){
+        result.badges=earned.map(b=>({...b,unlockedAt:unlocked[b.id]}))
+        result.featuredBadges=normalizeFeaturedBadges(settings.featured_badges,earned)
+      }
     }
     if(isOwn||(showcaseVisible&&settings.show_activity)){
       const recent=await getPool().query<{action:string;created_at:string}>(
@@ -125,17 +143,26 @@ export async function POST(req:Request){
     const parsed=showcaseSchema.safeParse(data)
     if(!parsed.success)return respond({error:parsed.error.issues[0]?.message||"Invalid profile"},400)
     const v=parsed.data
+    if(v.featuredBadges.length){
+      const [{rows:roles},stats]=await Promise.all([
+        getPool().query<{role:BadgeRole}>("SELECT role FROM profiles WHERE id=$1",[actor.id]),statsFor(actor.id)
+      ])
+      const earned=earnedBadges(stats,roles[0]?.role||"sub")
+      if(normalizeFeaturedBadges(v.featuredBadges,earned).length!==v.featuredBadges.length){
+        return respond({error:"Only badges earned in your current role may be featured"},400)
+      }
+    }
     const {rows}=await getPool().query(
       "INSERT INTO profile_showcases(user_id,display_name,tagline,likes,dislikes,dedication,boundaries,"+
-      "showcase_enabled,show_stats,show_achievements,show_activity) "+
-      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) "+
+      "showcase_enabled,show_stats,show_achievements,show_activity,featured_badges) "+
+      "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) "+
       "ON CONFLICT(user_id) DO UPDATE SET display_name=EXCLUDED.display_name,tagline=EXCLUDED.tagline,"+
       "likes=EXCLUDED.likes,dislikes=EXCLUDED.dislikes,dedication=EXCLUDED.dedication,"+
-      "boundaries=EXCLUDED.boundaries,showcase_enabled=EXCLUDED.showcase_enabled,"+
+      "boundaries=EXCLUDED.boundaries,featured_badges=EXCLUDED.featured_badges,showcase_enabled=EXCLUDED.showcase_enabled,"+
       "show_stats=EXCLUDED.show_stats,show_achievements=EXCLUDED.show_achievements,"+
       "show_activity=EXCLUDED.show_activity,updated_at=now() RETURNING user_id",
       [actor.id,v.displayName,v.tagline,JSON.stringify(v.likes),JSON.stringify(v.dislikes),
-        v.dedication,v.boundaries,v.showcaseEnabled,v.showStats,v.showAchievements,v.showActivity])
+        v.dedication,v.boundaries,v.showcaseEnabled,v.showStats,v.showAchievements,v.showActivity,JSON.stringify(v.featuredBadges)])
     if(!rows.length)return respond({error:"Could not save profile"},500)
     return respond({message:"Showcase preferences saved"})
   }catch(error){

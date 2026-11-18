@@ -1124,3 +1124,34 @@ button.campaign-chip{cursor:pointer}
 .campaign-hero-cover{max-height:400px}
 .campaign-card-cover{max-height:180px}
 .campaign-hero a{color:#eaa0af}
+
+/* Role achievement collection */
+.profile-v2-featured{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 4px}
+.profile-v2-featured-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #997f5b;
+  background:#372836;color:#f2e1d8;padding:6px 10px;border-radius:999px;font-size:.72rem;font-weight:650}
+.profile-v2-featured-chip.is-common{border-color:#8c8796}
+.profile-v2-featured-chip.is-rare{border-color:#6097cb}
+.profile-v2-featured-chip.is-epic{border-color:#a978dc}
+.profile-v2-featured-chip.is-legendary{border-color:#dcb26c}
+.profile-v2-badge.is-common{border-color:#807783}
+.profile-v2-badge.is-rare{border-color:#527bad}
+.profile-v2-badge.is-epic{border-color:#9e68ca}
+.profile-v2-badge.is-legendary{border-color:#c89b4c}
+.profile-v2-badge.is-locked{filter:saturate(.45);background:#302633;opacity:.82}
+.profile-v2-badge-details{min-width:0;flex:1}
+.profile-v2-badge-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.profile-v2-badge-top span{text-transform:capitalize;color:#d4afbd;font-size:.65rem}
+.profile-v2-badge-progress{display:grid;gap:4px;margin-top:10px}
+.profile-v2-badge-progress progress{width:100%;height:7px;accent-color:#bd8eec}
+.profile-v2-badge-progress span{font-size:.68rem;color:#d9c5d1}
+.showcase-featured-editor{display:grid;gap:10px;border:1px solid #60475a;border-radius:12px;padding:17px}
+.showcase-featured-editor>strong{font-size:.79rem;letter-spacing:.05em}
+.showcase-featured-editor>p{font-size:.78rem;color:#c9b5c3;margin:0}
+.showcase-featured-options{display:flex;flex-wrap:wrap;gap:8px}
+.showcase-featured-choice{display:inline-flex;align-items:center;gap:8px;border:1px solid #806c79;
+  border-radius:9px;padding:8px 10px;cursor:pointer;font-size:.76rem}
+.showcase-featured-choice.is-rare{border-color:#527bad}
+.showcase-featured-choice.is-epic{border-color:#9e68ca}
+.showcase-featured-choice.is-legendary{border-color:#c89b4c}
+.showcase-featured-choice:has(input:disabled){opacity:.5;cursor:not-allowed}
+.showcase-featured-choice input{accent-color:#d5a1cb}

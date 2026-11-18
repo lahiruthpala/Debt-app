@@ -74,6 +74,20 @@ CREATE TABLE IF NOT EXISTS profile_showcases (
   CONSTRAINT showcase_likes_array CHECK(jsonb_typeof(likes)='array'),
   CONSTRAINT showcase_dislikes_array CHECK(jsonb_typeof(dislikes)='array')
 );
+-- Existing installs gain private, member-selected featured achievement IDs.
+ALTER TABLE profile_showcases ADD COLUMN IF NOT EXISTS featured_badges jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE profile_showcases DROP CONSTRAINT IF EXISTS profile_showcases_featured_badges_check;
+ALTER TABLE profile_showcases ADD CONSTRAINT profile_showcases_featured_badges_check
+  CHECK (jsonb_typeof(featured_badges)='array' AND jsonb_array_length(featured_badges)<=3);
+
+-- Immutable initial award dates. Profiles and notifications are automatically
+-- removed on user deletion. Only server-calculated badge IDs may be inserted.
+CREATE TABLE IF NOT EXISTS profile_badge_unlocks (
+  user_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  badge_id varchar(64) NOT NULL,
+  unlocked_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(user_id,badge_id)
+);
 -- Index preselected likes without ever exposing an unpublished showcase.
 CREATE INDEX IF NOT EXISTS profile_showcases_likes_gin ON profile_showcases USING gin(likes);
 
