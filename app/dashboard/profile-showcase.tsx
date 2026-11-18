@@ -149,7 +149,7 @@ function MemberCard({data,preview=false,actions}:{data:ShowcaseResponse;preview?
     </div>}
     {active==="achievements"&&<div className="profile-v2-content">
       <section className="profile-v2-panel profile-v2-tab-panel">
-        <SectionTitle eyebrow="ROLE-SPECIFIC MILESTONES" title={p.role==="dom"?"Sovereign Collection":"Devotion Collection"}/>
+        <SectionTitle eyebrow={p.role==="dom"?"SOVEREIGN COLLECTION":"DEVOTION COLLECTION"} title="Achievements"/>
         {hasBadges?(displayedBadges.length?<div className="profile-v2-badge-grid">{displayedBadges.map(b=>
           <div className={"profile-v2-badge is-"+b.rarity+(b.earned?"":" is-locked")} key={b.id}>
             <span className="profile-v2-badge-icon" aria-hidden="true">{b.symbol}</span>
