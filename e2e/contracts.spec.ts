@@ -277,7 +277,7 @@ test("interactive debt contract: publish, propose, consent, random modules, task
     const profileAfterConsent=await dom.page.request.get("/api/showcase?handle="+encodeURIComponent(sub.handle))
     const afterStats=await profileAfterConsent.json()
     expect(afterStats.stats.acceptedAgreements).toBeGreaterThanOrEqual(1)
-    expect(afterStats.badges.some((b:{id:string})=>b.id==="first-agreement")).toBe(true)
+    expect(afterStats.badges.some((b:{id:string})=>b.id==="inkbound")).toBe(true)
 
     // A real dice roll changes the balance by the server-computed delta.
     const beforeDice=total(approved.scene)
