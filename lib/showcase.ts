@@ -1,3 +1,5 @@
+export {badgeDefinitions,badgesForRole,earnedBadges,normalizeFeaturedBadges} from "./showcase-badges.ts"
+export type {ShowcaseStats,ShowcaseBadge,BadgeRole,BadgeRarity} from "./showcase-badges.ts"
 import {z} from "zod"
 
 // One versioned, server-validated catalog. Members select existing labels only.
@@ -49,7 +51,9 @@ export const showcaseSchema=z.object({
   showcaseEnabled:z.boolean(),
   showStats:z.boolean(),
   showAchievements:z.boolean(),
-  showActivity:z.boolean()
+  showActivity:z.boolean(),
+  featuredBadges:z.array(z.string().regex(/^[a-z0-9-]+$/)).max(3)
+    .refine(items=>new Set(items).size===items.length,"Duplicate featured badges are not allowed").default([])
 }).superRefine((data,ctx)=>{
   const likes=new Set(data.likes)
   for(const value of data.dislikes){
@@ -57,28 +61,6 @@ export const showcaseSchema=z.object({
   }
 })
 export type ShowcaseSettings=z.infer<typeof showcaseSchema>
-export type ShowcaseStats={
-  acceptedAgreements:number;gameActions:number;tasksApproved:number;
-  proofsApproved:number;proofsReviewed:number;publishedTemplates:number;
-  campaignsCreated:number;campaignsJoined:number;campaignContributions:number;campaignTasksApproved:number
-}
-export type ShowcaseBadge={id:string;title:string;description:string}
-export function earnedBadges(stats:ShowcaseStats):ShowcaseBadge[]{
-  const badges:ShowcaseBadge[]=[]
-  if(stats.acceptedAgreements>=1)badges.push({id:"first-agreement",title:"Mutual Agreement",description:"Participated in a mutually accepted contract"})
-  if(stats.acceptedAgreements>=3)badges.push({id:"consistent-partner",title:"Consistent Partner",description:"Participated in three accepted contracts"})
-  if(stats.gameActions>=1)badges.push({id:"first-game",title:"First Move",description:"Completed a server-recorded game action"})
-  if(stats.gameActions>=10)badges.push({id:"active-player",title:"Active Player",description:"Completed ten recorded game actions"})
-  if(stats.tasksApproved>=1)badges.push({id:"verified-task",title:"Task Achiever",description:"Had at least one submitted task approved"})
-  if(stats.proofsApproved>=1)badges.push({id:"verified-evidence",title:"Evidence Contributor",description:"Had a proof submission approved"})
-  if(stats.proofsReviewed>=1)badges.push({id:"trusted-reviewer",title:"Trusted Reviewer",description:"Approved at least one partner proof"})
-  if(stats.campaignsCreated>=1)badges.push({id:"campaign-creator",title:"Campaign Creator",description:"Published a community campaign"})
-  if(stats.campaignsJoined>=1)badges.push({id:"community-member",title:"Community Member",description:"Voluntarily joined a campaign"})
-  if(stats.campaignContributions>=1)badges.push({id:"fictional-contributor",title:"Fictional Contributor",description:"Made an approved fictional contribution"})
-  if(stats.campaignTasksApproved>=1)badges.push({id:"campaign-task",title:"Community Achiever",description:"Had a campaign task approved"})
-  if(stats.publishedTemplates>=1)badges.push({id:"creator",title:"Contract Creator",description:"Published a contract template"})
-  return badges
-}
 export function activityLabel(action:string):string{
   switch(action){
     case "dice":return "Played a dice game"
