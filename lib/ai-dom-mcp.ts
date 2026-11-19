@@ -2,6 +2,7 @@ import {randomInt,randomUUID} from "node:crypto"
 import type {PoolClient} from "pg"
 import {z} from "zod"
 import {getPool} from "@/lib/db"
+import {allowedAiText,normalizeAiText} from "@/lib/ai-dom-mcp-policy"
 import {assignmentInput,initialNarrativeState,narrativeSchema,narrativeStep,
   permittedChoices,taskStepSchema} from "@/lib/scene-platform"
 
@@ -28,13 +29,10 @@ export const toolInputs={
 }
 export type AiToolName=keyof typeof toolInputs
 type Scene={sceneId:string;subId:string;status:string}
-const safeString=(s:string)=>s.replace(/[\u0000-\u001f\u007f]/g," ").trim()
 function safeText(value:string){
-  const text=safeString(value)
-  // Best-effort guard, not a replacement for LLM/content moderation.
-  if(/https?:\/\/|www\.|(?:bank|wire|crypto)\s+(?:transfer|payment)|(?:send|pay)\s+(?:real|actual)\s+(?:money|cash)|(?:nude|intimate)\s+(?:photo|image|picture)/i.test(text))
-    throw new AiToolError(400,"AI text must not request real payments, links or intimate images")
-  return text
+  if(!allowedAiText(value))throw new AiToolError(400,
+    "AI text must not request real payments, links or intimate images")
+  return normalizeAiText(value)
 }
 async function sceneFor(db:PoolClient,sceneId:string,lock:boolean):Promise<Scene>{
   const {rows}=await db.query<{sceneId:string;subId:string;status:string}>(
