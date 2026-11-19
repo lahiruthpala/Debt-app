@@ -33,7 +33,7 @@ test("Sub AI Dom flow requires opt-in and separate contract approval; disabling 
   await expect(create).toBeDisabled()
   await page.getByRole("checkbox",{name:/I understand this is AI roleplay/}).check()
   await create.click()
-  await expect(page.getByRole("status")).toContainText("AI scene proposed")
+  await expect(page.getByText(/AI scene proposed\. Review and approve/)).toBeVisible()
   const records=await page.request.get("/api/ai-dom")
   expect(records.status()).toBe(200)
   const scenes=(await records.json()).scenes
