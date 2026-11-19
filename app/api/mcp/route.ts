@@ -39,23 +39,27 @@ export async function POST(req:Request){
   if(!Number.isFinite(length)||length>131072)return error("Request exceeds MCP size limit",413)
   // Stateless handler factory: do not share model/scene state across tenants.
   const handler=createMcpHandler((server)=>{
-    const register=<N extends AiToolName>(name:N)=>{
-      server.registerTool(name,{
-        description:descriptions[name],
-        inputSchema:toolInputs[name],
-      },async (args)=>{
-        try{
-          const result=await runAiDomTool(name,args)
-          return {content:[{type:"text" as const,text:JSON.stringify(result)}]}
-        }catch(cause){
-          const message=cause instanceof AiToolError?cause.message:"AI Dom tool failed"
-          if(!(cause instanceof AiToolError))
-            console.error("AI Dom MCP:",cause instanceof Error?cause.message:"Unknown tool error")
-          return {isError:true,content:[{type:"text" as const,text:message}]}
-        }
-      })
+    const invoke=(name:AiToolName)=>async(args:unknown)=>{
+      try{
+        const result=await runAiDomTool(name,args)
+        return {content:[{type:"text" as const,text:JSON.stringify(result)}]}
+      }catch(cause){
+        const message=cause instanceof AiToolError?cause.message:"AI Dom tool failed"
+        if(!(cause instanceof AiToolError))
+          console.error("AI Dom MCP:",cause instanceof Error?cause.message:"Unknown tool error")
+        return {isError:true,content:[{type:"text" as const,text:message}]}
+      }
     }
-    for(const name of Object.keys(toolInputs) as AiToolName[])register(name)
+    server.registerTool("list_ai_scenes",{description:descriptions.list_ai_scenes,inputSchema:toolInputs.list_ai_scenes},invoke("list_ai_scenes"))
+    server.registerTool("get_scene_context",{description:descriptions.get_scene_context,inputSchema:toolInputs.get_scene_context},invoke("get_scene_context"))
+    server.registerTool("send_message",{description:descriptions.send_message,inputSchema:toolInputs.send_message},invoke("send_message"))
+    server.registerTool("propose_task",{description:descriptions.propose_task,inputSchema:toolInputs.propose_task},invoke("propose_task"))
+    server.registerTool("get_pending_reviews",{description:descriptions.get_pending_reviews,inputSchema:toolInputs.get_pending_reviews},invoke("get_pending_reviews"))
+    server.registerTool("review_text_submission",{description:descriptions.review_text_submission,inputSchema:toolInputs.review_text_submission},invoke("review_text_submission"))
+    server.registerTool("list_story_templates",{description:descriptions.list_story_templates,inputSchema:toolInputs.list_story_templates},invoke("list_story_templates"))
+    server.registerTool("propose_story",{description:descriptions.propose_story,inputSchema:toolInputs.propose_story},invoke("propose_story"))
+    server.registerTool("get_story_state",{description:descriptions.get_story_state,inputSchema:toolInputs.get_story_state},invoke("get_story_state"))
+    server.registerTool("choose_story",{description:descriptions.choose_story,inputSchema:toolInputs.choose_story},invoke("choose_story"))
   })
   return handler(req)
 }
