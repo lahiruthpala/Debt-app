@@ -1,0 +1,67 @@
+name: AI Dom MCP validation
+on:
+  pull_request:
+    paths:
+      - "app/api/ai-dom/**"
+      - "app/api/mcp/**"
+      - "app/dashboard/**"
+      - "lib/ai-dom-mcp*"
+      - "db/schema.sql"
+      - "package.json"
+      - "tests/ai-dom-mcp*"
+      - "e2e/ai-dom-mcp.spec.ts"
+      - ".github/workflows/ai-dom-mcp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Next.js build
+        run: npm run build
+      - name: MCP HTTP smoke (stateless, private)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MCP_AI_DOM_TOKEN="$(openssl rand -hex 32)"
+          HOSTNAME=127.0.0.1 PORT=3099 npm run start >/tmp/ai-mcp-next.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 40); do
+            if curl --max-time 2 -s -o /dev/null http://127.0.0.1:3099/; then break; fi
+            sleep 1
+          done
+          url="http://127.0.0.1:3099/api/mcp"
+          status=$(curl -sS -o /tmp/ai-mcp-denied.json -w '%{http_code}' \
+            -X POST "$url" -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer wrong-token' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"ping"}')
+          test "$status" = "401"
+          curl --fail-with-body --max-time 20 -sS -X POST "$url" \
+            -H "Authorization: Bearer $MCP_AI_DOM_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' \
+            > /tmp/ai-mcp-init.json
+          grep -q 'protocolVersion' /tmp/ai-mcp-init.json
+          curl --fail-with-body --max-time 20 -sS -X POST "$url" \
+            -H "Authorization: Bearer $MCP_AI_DOM_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -H 'MCP-Protocol-Version: 2025-11-25' \
+            --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+            > /tmp/ai-mcp-tools.json
+          grep -q 'list_ai_scenes' /tmp/ai-mcp-tools.json

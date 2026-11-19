@@ -11,6 +11,7 @@ import PartnerSpace from "./partner-space"
 import NotificationCenter from "./notification-center"
 import ProofCenter,{ProofUploader} from "./proof-center"
 import QuickGameGallery from "./quick-game-gallery"
+import AiDomHub from "./ai-dom-hub"
 import {ProfileShowcaseEditor,ShowcasePreviewModal} from "./profile-showcase"
 import {UI_RELEASE} from "@/lib/ui-release"
 import {interestGroups,MAX_DISCOVER_LIKES} from "@/lib/showcase"
@@ -22,7 +23,7 @@ type Scene = { id:string; connection_id:string; status:string; connection_state:
 type Event = {id:string; type:string; amount:number; detail:string; actor:string; created_at:string}
 type Challenge = {id:string; title:string; reward:number; state:string; created_at:string}
 type Details = { scene:Scene; events:Event[]; challenges:Challenge[] }
-type Tab = "overview"|"discover"|"connections"|"contracts"|"campaigns"|"stories"|"games"|"operations"|"partner"|"profile"
+type Tab = "overview"|"discover"|"ai-dom"|"connections"|"contracts"|"campaigns"|"stories"|"games"|"operations"|"partner"|"profile"
 
 const money=(n:number)=>"LKR "+Number(n || 0).toLocaleString("en-US")
 const date=(d:string)=>new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
@@ -231,9 +232,9 @@ export default function Dashboard() {
       <Link href="/" className="brand"><span className="brand-symbol">◆</span> VELVET LEDGER <small>PRIVATE STUDIO</small></Link>
       <div className="rail-caption">WORKSPACE</div>
       {([
-        ["overview","▦","Overview"],["discover","⌕","Discover"],["connections","◇","Connections"],
+        ["overview","▦","Overview"],["discover","⌕","Discover"],["ai-dom","✧","AI Dom"],["connections","◇","Connections"],
         ["contracts","◈","Contracts"],["campaigns","♧","Campaigns"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["partner","☏","Partner space"],["profile","◎","My profile"],
-      ] as const).map(([id,icon,label])=><button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations"||id==="partner")void refresh()}}>
+      ] as const).map(([id,icon,label])=>id==="ai-dom"&&ownRole!=="sub"?null:<button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations"||id==="partner")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
       <div className="rail-bottom"><div className="rail-legal">18+ CONSENSUAL ROLEPLAY<br/>ALL BALANCES ARE FICTIONAL</div>
@@ -243,7 +244,7 @@ export default function Dashboard() {
     <section className="app-main">
       <div className="app-topline">
         <div><span className="eyebrow">THE PRIVATE STUDIO / {tab.toUpperCase()}</span>
-          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="campaigns"?"Community campaigns":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":tab==="partner"?"Your shared space":"Your identity"}</h1></div>
+          <h1>{tab==="overview"?"Your command center":tab==="discover"?"Find your counterpart":tab==="ai-dom"?"Your AI Dom":tab==="connections"?"Mutual connections":tab==="contracts"?"Debt contracts":tab==="campaigns"?"Community campaigns":tab==="stories"?"Open-ended story games":tab==="games"?"The game room":tab==="operations"?"Activity & operations":tab==="partner"?"Your shared space":"Your identity"}</h1></div>
         <div className="ops-top-controls">
           {profile&&active&&<button type="button" className="btn btn-danger-soft scene-global-stop"
             disabled={busy} onClick={()=>void stopNow()}>Stop scene</button>}
@@ -333,6 +334,9 @@ export default function Dashboard() {
             </div></>}
           </>}
         </>}
+
+        {tab==="ai-dom" && ownRole==="sub" && <AiDomHub onChanged={refresh}
+          onOpenScene={id=>{setSelected(id);void loadDetails(id);setTab("overview")}}/>}
 
         {tab==="discover" && <>
           <div className="dash-card discover-hub">

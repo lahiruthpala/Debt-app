@@ -1192,3 +1192,29 @@ CREATE TABLE IF NOT EXISTS campaign_creator_follows (
   CHECK(creator_id<>follower_id)
 );
 CREATE INDEX IF NOT EXISTS campaign_creator_follows_follower_idx ON campaign_creator_follows(follower_id);
+
+
+-- AI Dom MCP: explicitly marked system actor, opt-in scenes, and idempotent actions.
+-- Default false keeps existing members human, including on upgraded installations.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_ai boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS ai_dom_scenes (
+  scene_id uuid PRIMARY KEY REFERENCES scenes(id) ON DELETE CASCADE,
+  sub_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  dom_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  enabled boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (sub_id <> dom_id)
+);
+CREATE INDEX IF NOT EXISTS ai_dom_scenes_sub_idx ON ai_dom_scenes(sub_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_dom_tool_actions (
+  id uuid PRIMARY KEY,
+  scene_id uuid NOT NULL REFERENCES ai_dom_scenes(scene_id) ON DELETE CASCADE,
+  tool_name varchar(50) NOT NULL,
+  request_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (scene_id,tool_name,request_id)
+);
+CREATE INDEX IF NOT EXISTS ai_dom_tool_actions_rate_idx ON ai_dom_tool_actions(scene_id,created_at DESC);
