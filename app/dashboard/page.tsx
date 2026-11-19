@@ -234,7 +234,7 @@ export default function Dashboard() {
       {([
         ["overview","▦","Overview"],["discover","⌕","Discover"],["ai-dom","✧","AI Dom"],["connections","◇","Connections"],
         ["contracts","◈","Contracts"],["campaigns","♧","Campaigns"],["stories","✦","Story games"],["games","♢","Game room"],["operations","▤","Activity hub"],["partner","☏","Partner space"],["profile","◎","My profile"],
-      ] as const).map(([id,icon,label])=><button key={id} hidden={id==="ai-dom"&&ownRole!=="sub"} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations"||id==="partner")void refresh()}}>
+      ] as const).map(([id,icon,label])=>id==="ai-dom"&&ownRole!=="sub"?null:<button key={id} className={"rail-link "+(tab===id?"active":"")} onClick={()=>{setTab(id);if(id==="connections"||id==="overview"||id==="games"||id==="contracts"||id==="stories"||id==="operations"||id==="partner")void refresh()}}>
         <span className="rail-icon" aria-hidden="true">{icon}</span>{label}{id==="connections" && connections.some(c=>c.state==="pending" && c.recipient_id===me?.id) && <span className="notification-dot"/>}
       </button>)}
       <div className="rail-bottom"><div className="rail-legal">18+ CONSENSUAL ROLEPLAY<br/>ALL BALANCES ARE FICTIONAL</div>
