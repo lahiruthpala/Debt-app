@@ -2,6 +2,19 @@
 
 **An 18+ consent-first fantasy debt and roleplay studio.** Next.js App Router, Better Auth, PostgreSQL, and server-side game mechanics. All balances are imaginary LKR figures; no real money is received, held, or transferred.
 
+## AI Dom MCP gateway (opt-in)
+
+A disclosed system AI Dom can be connected to an adult Sub's proposed, explicitly approved
+scene. The Sub's **AI Dom** dashboard tab creates/disables AI scenes; a private
+Streamable HTTP MCP gateway at `/api/mcp` exposes only scene-scoped chat,
+optional text tasks and approved branching-story actions to trusted external
+orchestrators. It cannot consent for the Sub, access proof files, modify fictional
+balances, or make real payments. The MCP server does **not** run an AI model or
+automatically reply by itself.
+
+See **[docs/ai-dom-mcp.md](docs/ai-dom-mcp.md)** for setup, security, tool
+definitions and required agent-runner integration.
+
 ## Features
 
 ## Community Campaigns (one Dom → many Subs)
