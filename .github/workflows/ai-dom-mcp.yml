@@ -9,6 +9,7 @@ on:
       - "db/schema.sql"
       - "package.json"
       - "tests/ai-dom-mcp*"
+      - "e2e/ai-dom-mcp.spec.ts"
       - ".github/workflows/ai-dom-mcp.yml"
   workflow_dispatch:
 
