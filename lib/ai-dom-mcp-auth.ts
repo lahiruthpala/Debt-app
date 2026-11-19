@@ -4,6 +4,8 @@ import {timingSafeEqual} from "node:crypto"
 export function validMcpBearer(header:string|null,secret:string|undefined){
   if(!secret||secret.length<32||!header?.startsWith("Bearer "))return false
   const supplied=header.slice(7)
-  if(supplied.length!==secret.length)return false
-  return timingSafeEqual(Buffer.from(supplied,"utf8"),Buffer.from(secret,"utf8"))
+  const suppliedBytes=Buffer.from(supplied,"utf8")
+  const secretBytes=Buffer.from(secret,"utf8")
+  if(suppliedBytes.length!==secretBytes.length)return false
+  return timingSafeEqual(suppliedBytes,secretBytes)
 }
